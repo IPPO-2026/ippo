@@ -5,6 +5,31 @@
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FFFFFF",
-  "theme_color": "#66E8BF",
-  "icons": [{ "src": "/brand/ippo-symbol.png", "sizes": "1200x1200", "type": "image/png", "purpose": "any" }]
+  "theme_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "id": "/",
+  "scope": "/",
+  "shortcuts": [
+    {
+      "name": "チャット · 대화",
+      "url": "/#chat"
+    },
+    {
+      "name": "小さな一歩 · 작은 한 걸음",
+      "url": "/#steps"
+    }
+  ]
 }

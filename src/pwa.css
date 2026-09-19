@@ -1,0 +1,56 @@
+@layer reset, base, layout, components, responsive, app;
+@layer app {
+  .mobile-new-chat { display: none; }
+  .workspace { display: flex; flex-direction: column; }
+  .app-notice { display: flex; align-items: center; gap: 12px; padding: 12px 24px; background: #edf9f4; border-bottom: 1px solid #d4e9df; color: #205c4b; font-size: 13px; line-height: 1.6; flex-shrink: 0; }
+  .app-notice strong { white-space: nowrap; }
+  .update-notice { justify-content: space-between; }
+  .update-notice button { min-height: 44px; padding: 0 14px; border: 1px solid #08755e; border-radius: 12px; font-weight: 600; }
+  .install-card { margin-top: 28px; padding: 24px; border: 1px solid #d4e9df; border-radius: 24px; background: #f3fcf8; display: grid; grid-template-columns: 48px 1fr; gap: 14px; }
+  .install-symbol { width: 48px; height: 48px; border-radius: 14px; }
+  .install-card h2 { font-size: 17px; line-height: 1.6; }
+  .install-card p { font-size: 13px; line-height: 1.8; color: #49695e; }
+  .install-card > :not(img):not(div) { grid-column: 1 / -1; }
+  .install-status { font-size: 12px; color: #08755e; font-weight: 600; }
+  .install-card summary { min-height: 44px; padding: 10px 0; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .install-card h3 { font-size: 13px; margin: 12px 0 4px; }
+  .install-card .offline-readiness { border-top: 1px solid #d4e9df; padding-top: 14px; color: #08755e; }
+  @media (max-width: 700px) {
+    html, body, #root { height: 100%; overflow: hidden; overscroll-behavior: none; }
+    .app-shell { position: fixed; top: var(--app-top, 0px); left: 0; right: 0; height: var(--app-height, 100dvh); min-height: 0; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+    .workspace { flex: 1; min-height: 0; width: 100%; }
+    .topbar { flex-shrink: 0; height: calc(64px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 16px 0; gap: 8px; }
+    .mobile-brand .brand-wordmark { width: 78px; border-radius: 8px; }
+    .mobile-new-chat { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; color: #08755e; margin-right: auto; }
+    .mobile-new-chat:hover { background: #edf9f4; }
+    .topbar-controls { gap: 8px; }
+    .topbar-controls .mode-pill { font-size: 11px; padding: 4px 6px; }
+    .language-control select { min-height: 44px; }
+    .language-control > svg { display: none; }
+    .workspace-body { flex: 1; min-height: 0; overflow: hidden; display: flex; }
+    .main-panel { flex: 1; min-width: 0; }
+    .chat-panel { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+    .chat-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px; }
+    .welcome { padding-top: 24px; padding-bottom: 8px; }
+    .hero-symbol { width: 58px; height: 58px; border-radius: 18px; }
+    .welcome h1 { font-size: 25px; line-height: 1.45; }
+    .welcome-intro { line-height: 1.7; }
+    .starter-prompts { margin-top: 18px; }
+    .starter-prompts button { min-height: 48px; padding: 9px 12px; }
+    .composer-area { flex-shrink: 0; padding: 9px 16px 8px; border-top: 1px solid #edf2ef; background: white; max-height: 65%; overflow-y: auto; }
+    .composer { padding: 8px 12px; border-radius: 20px; }
+    .composer textarea { min-height: 28px; }
+    .privacy-note { margin-top: 3px; flex-wrap: wrap; }
+    .privacy-note .text-button { min-height: 32px; }
+    .medical-note { font-size: 11px; }
+    .demo-explanation { font-size: 11px; margin-bottom: 6px; }
+    .mobile-nav { position: static; flex-shrink: 0; height: calc(66px + env(safe-area-inset-bottom, 0px)); padding: 5px 14px calc(5px + env(safe-area-inset-bottom, 0px)); background: white; backdrop-filter: none; }
+    .mobile-nav button { font-size: 11px; border-radius: 16px; }
+    .content-panel { height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 28px 20px 36px; }
+    .app-notice { padding: 8px 16px; gap: 8px; font-size: 12px; }
+    .install-card { padding: 18px; border-radius: 20px; }
+    .keyboard-open .mobile-nav { display: none; }
+    .keyboard-open .privacy-note, .keyboard-open .medical-note { display: none; }
+    .keyboard-open .composer-area { padding-bottom: 8px; }
+  }
+}

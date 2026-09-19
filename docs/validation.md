@@ -39,4 +39,13 @@ PLAYWRIGHT_CHROME_CHANNEL=chrome npm run test:ui:live-contract
 
 설치된 Chrome이 없으면 `npx playwright install chromium` 후 `PLAYWRIGHT_CHROME_CHANNEL` 없이 실행합니다. `IPPO_TEST_URL` 환경 변수로 테스트 주소를 바꿀 수 있습니다. `test:ui`는 초기화된 테스트 브라우저의 체험 모드를 전제로 하며, live 계약 검사는 config·Turnstile·채팅 API를 모의 응답으로 대체합니다. 이는 실제 공급자 통합 검증을 대신하지 않습니다.
 
-GitHub CI는 타입 검사·76개 테스트·빌드·체험 dry run을 수행합니다. 화면 검사는 위 스크립트로 별도 실행합니다. 스크린샷은 `artifacts/`에 생성하고, 개인정보가 없는 초기 화면만 `docs/preview-*.png`에 보관했습니다.
+GitHub CI는 타입 검사·76개 테스트·빌드·PWA 브라우저 검사·체험 dry run을 수행합니다. 화면 검사는 위 스크립트로 별도 실행합니다. 스크린샷은 `artifacts/`에 생성하고, 개인정보가 없는 초기 화면만 `docs/preview-*.png`에 보관했습니다.
+
+## PWA 마이그레이션 (2026-09-19)
+
+- 390×844 모바일에서 화면 전체 스크롤 없이 채팅 영역만 스크롤하고 입력창·하단 메뉴가 화면 안에 유지됨을 확인했습니다. 1440×1000 및 한·일 기본 흐름 재검증 통과.
+- `npm run test:pwa`: 실제 서비스 워커 설치, 새 빌드 대기, 사용자 확인 전 초안 유지, 업데이트 적용, 오프라인 새로고침, 미션 완료, API 캐시 제외, 재연결 통과. 별도 임시 HTTP 서버에서 테스트합니다.
+- `npm run test:ui:live-contract`: 모의 API 계약 재검증 통과. 실제 AI 호출은 아닙니다.
+- Cloudflare 정적 자산의 `/index.html` 리디렉션을 피하도록 `/`를 미리 저장합니다. 로컬 Wrangler 환경의 새로고침도 통과했습니다.
+- 아이콘 192/512px와 Apple 180px는 제공받은 원본 심벌을 비율 유지하여 축소했습니다.
+- Cloudflare 인증 만료 확인. 실제 AI 연결·공개 HTTPS 배포·실기기 설치·모바일 키보드 동작은 미검증입니다.

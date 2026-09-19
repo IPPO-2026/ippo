@@ -9,16 +9,17 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:api": "wrangler dev --port 8787",
-    "build": "npm run typecheck && vite build",
+    "build": "npm run typecheck && vite build && node scripts/build-pwa.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.worker.json",
     "test": "vitest run",
     "test:ui": "node scripts/smoke-ui.mjs",
     "test:ui:live-contract": "node scripts/smoke-live-ui.mjs",
-    "check": "npm run typecheck && npm test && vite build",
+    "check": "npm run typecheck && npm test && vite build && node scripts/build-pwa.mjs",
     "deploy:demo": "npm run build && wrangler deploy",
     "deploy:live": "npm run build && wrangler deploy --config wrangler.live.jsonc",
-    "db:local": "wrangler d1 migrations apply ippo-budget --local --config wrangler.live.jsonc"
+    "db:local": "wrangler d1 migrations apply ippo-budget --local --config wrangler.live.jsonc",
+    "test:pwa": "node scripts/smoke-pwa.mjs"
   },
   "dependencies": {
     "lucide-react": "^1.47.0",

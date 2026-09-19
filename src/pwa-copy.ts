@@ -1,0 +1,28 @@
+export const pwaCopy = {
+  ko: {
+    title: '어디서든, 내 곁의 잇포', description: '홈 화면에 추가하고 앱처럼 편하게 열어보세요.',
+    install: '홈 화면에 설치', installed: '앱으로 사용 중', installing: '설치 안내 여는 중…',
+    instructions: '설치 방법 보기', ios: 'iPhone · iPad', iosSteps: 'Safari에서 이 주소를 열고 공유 버튼 → 홈 화면에 추가 → 추가를 선택하세요.',
+    android: 'Android · 데스크톱', androidSteps: 'Chrome 또는 Edge 메뉴에서 앱 설치 또는 홈 화면에 추가를 선택하세요. 메뉴가 없다면 지원되는 브라우저에서 HTTPS 주소를 열어주세요.',
+    ready: '오프라인 사용 준비 완료', preparing: '오프라인 사용 준비 중', unavailable: '오프라인 준비를 완료하지 못했어요. 온라인에서 다시 열어주세요.',
+    offline: '오프라인', offlineText: '미션과 저장된 기록을 볼 수 있어요. AI 대화에는 인터넷 연결이 필요해요.',
+    onlineOnly: '연결되면 다시 이야기할 수 있어요.', update: '새로운 버전이 준비됐어요', apply: '지금 업데이트',
+    updateWarning: '앱을 새로 열어요. 저장하지 않은 대화와 입력 중인 내용은 사라질 수 있어요. 필요한 대화를 내보낸 뒤 업데이트할까요?',
+    privacy: '오프라인 저장에는 화면·아이콘만 포함돼요. AI 응답과 대화 전송 내역은 캐시하지 않아요.',
+    app: '앱 설치와 업데이트', browser: '브라우저에서 사용 중', newChat: '새 대화', status: '연결 상태',
+    connectionError: '연결 확인이 필요해요', connectionHelp: '온라인 상태에서 다시 연결해 주세요. 현재 체험 모드이며 실제 AI 연결을 확인하지 못했어요.',
+  },
+  ja: {
+    title: 'いつでも、そばに。いっぽ。', description: 'ホーム画面に追加して、アプリのように開けます。',
+    install: 'ホーム画面に追加', installed: 'アプリで利用中', installing: 'インストールを準備中…',
+    instructions: '追加する方法を見る', ios: 'iPhone · iPad', iosSteps: 'Safariでこのアドレスを開き、共有 → ホーム画面に追加 → 追加を選んでください。',
+    android: 'Android · デスクトップ', androidSteps: 'ChromeまたはEdgeのメニューでアプリをインストール、またはホーム画面に追加を選びます。表示されない場合は対応ブラウザでHTTPSのアドレスを開いてください。',
+    ready: 'オフラインの準備ができました', preparing: 'オフラインの準備中', unavailable: 'オフラインの準備ができませんでした。オンラインで開き直してください。',
+    offline: 'オフライン', offlineText: 'ミッションと保存した記録は使えます。AIとの会話にはインターネット接続が必要です。',
+    onlineOnly: '接続すると、またお話しできます。', update: '新しいバージョンがあります', apply: '更新する',
+    updateWarning: 'アプリを開き直します。保存していない会話や入力中の内容は消える場合があります。必要な会話を書き出してから更新しますか？',
+    privacy: 'オフライン用には画面とアイコンだけを保存します。AIの応答や送信した会話はキャッシュしません。',
+    app: 'アプリの追加と更新', browser: 'ブラウザで利用中', newChat: '新しい会話', status: '接続状況',
+    connectionError: '接続を確認してください', connectionHelp: 'オンラインで再接続してください。今は体験モードで、AIへの接続は確認できていません。',
+  },
+};

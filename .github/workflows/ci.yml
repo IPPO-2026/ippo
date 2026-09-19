@@ -16,6 +16,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:pwa
       - run: npx wrangler deploy --dry-run --outdir /tmp/ippo-worker
         env:
           WRANGLER_SEND_METRICS: 'false'

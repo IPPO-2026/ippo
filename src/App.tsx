@@ -7,6 +7,9 @@ import BrandMark from './BrandMark';
 import { contextMessages, freshStep, loadHistory, loadPreferences, loadStep, localDate, STORAGE } from './local-state';
 import type { DisplayMessage, Preferences, StepState } from './local-state';
 import Turnstile from './Turnstile';
+import { usePwa } from './usePwa';
+import { pwaCopy } from './pwa-copy';
+import './pwa.css';
 
 type Tab = 'chat' | 'steps' | 'settings';
 const DEMO_CONFIG: AppConfig = { mode: 'demo', turnstileSiteKey: null, maxMessageLength: MAX_MESSAGE_LENGTH, maxContextCharacters: MAX_CONTEXT_CHARACTERS };
@@ -26,7 +29,22 @@ export default function App() {
   const [preferences, setPreferences] = useState<Preferences>(initialPreferences);
   const { locale, region, saveHistory } = preferences;
   const t = copy[locale];
-  const [tab, setTab] = useState<Tab>('chat');
+  const readTab = (): Tab => location.hash === '#steps' ? 'steps' : location.hash === '#settings' ? 'settings' : 'chat';
+  const [tab, storeTab] = useState<Tab>(readTab);
+  const setTab = (next: Tab) => { location.hash = next; storeTab(next); };
+  const pwa = usePwa();
+  const pt = pwaCopy[locale];
+  useEffect(() => { const change = () => storeTab(readTab()); window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, []);
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const resize = () => {
+      document.documentElement.style.setProperty('--app-height', `${viewport?.height ?? window.innerHeight}px`);
+      document.documentElement.style.setProperty('--app-top', `${viewport?.offsetTop ?? 0}px`);
+      document.documentElement.classList.toggle('keyboard-open', !!viewport && window.innerHeight - viewport.height > 150 && document.activeElement?.tagName === 'TEXTAREA');
+    };
+    resize(); viewport?.addEventListener('resize', resize); viewport?.addEventListener('scroll', resize); window.addEventListener('resize', resize); document.addEventListener('focusout', resize);
+    return () => { viewport?.removeEventListener('resize', resize); viewport?.removeEventListener('scroll', resize); window.removeEventListener('resize', resize); document.removeEventListener('focusout', resize); };
+  }, []);
   const [messages, setMessages] = useState<DisplayMessage[]>(() => loadHistory(initialPreferences));
   const [step, setStep] = useState<StepState>(() => loadStep(initialPreferences.region));
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -96,9 +114,7 @@ export default function App() {
     } catch {
       if (controller !== configRequest.current) return;
       if (controller.signal.aborted && controller.signal.reason !== 'timeout') return;
-      if (lastMode.current === 'live') resetConversation();
-      lastMode.current = 'demo';
-      setConfig(DEMO_CONFIG);
+      setConfig(current => current ?? DEMO_CONFIG);
       setConfigError(true);
     } finally {
       window.clearTimeout(timeout);
@@ -107,6 +123,7 @@ export default function App() {
   }, [resetConversation]);
 
   useEffect(() => { void loadConfig(); return () => { configRequest.current?.abort(); configRequest.current = null; }; }, [loadConfig]);
+  useEffect(() => { const online = () => void loadConfig(); window.addEventListener('online', online); return () => window.removeEventListener('online', online); }, [loadConfig]);
   useEffect(() => () => { request.current?.abort(); session.current += 1; }, []);
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -169,7 +186,7 @@ export default function App() {
   }
 
   async function sendMessage(supplied?: string, retry?: DisplayMessage[]) {
-    if (busy.current || !config) return;
+    if (busy.current || !config || pwa.offline) return;
     const content = (supplied ?? draft).trim();
     if (!retry && !content) return;
     if (content.length > config.maxMessageLength) { setError(t.tooLong); return; }
@@ -283,11 +300,13 @@ export default function App() {
 
     <div className="workspace">
       <header className="topbar">
-        <div className="mobile-brand"><Brand locale={locale} /></div>
+        <div className="mobile-brand"><Brand locale={locale} /></div><button className="mobile-new-chat" aria-label={pt.newChat} onClick={() => { if (messages.length) setClearConfirmation('chat'); else { resetConversation(); setTab('chat'); } }}><Plus size={20} /></button>
         <div className="breadcrumb"><span>{t.today}</span><span className="breadcrumb-divider">/</span><strong>{tab === 'chat' ? t.chat : tab === 'steps' ? t.steps : t.settings}</strong></div>
-        <div className="topbar-controls"><span className={`mode-pill ${isLive ? 'live' : ''}`}><span />{configLoading ? t.checking : isLive ? t.online : t.demo}</span><div className="language-control"><Globe2 size={15} /><select aria-label={t.language} title={t.languageHint} value={locale} onChange={event => changeLocale(event.target.value as Locale)}><option value="ja">日本語</option><option value="ko">한국어</option></select></div></div>
+        <div className="topbar-controls"><span className={`mode-pill ${isLive ? 'live' : ''}`}><span />{pwa.offline ? pt.offline : configLoading ? t.checking : isLive ? t.online : t.demo}</span><div className="language-control"><Globe2 size={15} /><select aria-label={t.language} title={t.languageHint} value={locale} onChange={event => changeLocale(event.target.value as Locale)}><option value="ja">日本語</option><option value="ko">한국어</option></select></div></div>
       </header>
 
+      {pwa.offline && <div className="app-notice" role="status"><strong>{pt.offline}</strong><span>{pt.offlineText}</span></div>}
+      {pwa.update && <div className="app-notice update-notice" role="status"><span>{pt.update}</span><button onClick={() => { if ((!draft && !messages.length) || window.confirm(pt.updateWarning)) pwa.applyUpdate(); }}>{pt.apply}</button></div>}
       <div className={`workspace-body tab-${tab}`}>
         <main id="main-content" className={`main-panel ${tab === 'chat' ? 'chat-panel' : 'content-panel'}`}>
           {tab === 'chat' && <>
@@ -314,7 +333,7 @@ export default function App() {
               {isLive && !config.turnstileSiteKey && <p role="alert" className="inline-error">{t.verificationError}</p>}
               <form className={`composer ${loading ? 'is-loading' : ''}`} onSubmit={event => { event.preventDefault(); void sendMessage(); }}>
                 <textarea ref={textarea} aria-label={t.placeholder} placeholder={t.placeholder} value={draft} rows={1} maxLength={MAX_MESSAGE_LENGTH} disabled={loading} onChange={event => { setDraft(event.target.value); if (error && !retryMessages) setError(''); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.keyCode !== 229) { event.preventDefault(); void sendMessage(); } }} />
-                <div className="composer-bottom"><div><Leaf size={14} strokeWidth={1.5} /><span className="desktop-input-hint">{t.inputHint}</span><span className="mobile-input-hint">{t.mobileInputHint}</span>{draft.length > 800 && <span className="character-count">{draft.length}/{MAX_MESSAGE_LENGTH}</span>}</div>{loading ? <button type="button" className="send-button" aria-label={t.cancel} onClick={cancelRequest}><X size={21} /></button> : <button className="send-button" type="submit" aria-label={t.send} disabled={!draft.trim() || !config || (isLive && (!consent || !token))}><ArrowUp size={22} /></button>}</div>
+                <div className="composer-bottom"><div><Leaf size={14} strokeWidth={1.5} /><span className="desktop-input-hint">{t.inputHint}</span><span className="mobile-input-hint">{t.mobileInputHint}</span>{draft.length > 800 && <span className="character-count">{draft.length}/{MAX_MESSAGE_LENGTH}</span>}</div>{loading ? <button type="button" className="send-button" aria-label={t.cancel} onClick={cancelRequest}><X size={21} /></button> : <button className="send-button" type="submit" aria-label={t.send} disabled={pwa.offline || !draft.trim() || !config || (isLive && (!consent || !token))}><ArrowUp size={22} /></button>}</div>
               </form>
               <p className="privacy-note"><LockKeyhole size={11} />{saveHistory ? t.savedHint : t.privacyHint}<button className="text-button" onClick={() => setTab('settings')}>{t.settings}</button></p>
               <p className="medical-note">{t.disclaimer}</p>
@@ -324,9 +343,10 @@ export default function App() {
           {tab === 'steps' && <div className="steps-page"><span className="eyebrow">ONE SMALL STEP, AT YOUR PACE</span><h1>{t.stepHeading}</h1><p className="page-intro">{t.stepIntro}</p>{renderStepCard(true)}<div className="step-page-note"><Heart size={18} /><p>{t.noCompetition}</p><small>{t.stepLocal}</small></div>{renderSupport()}</div>}
 
           {tab === 'settings' && <div className="settings-page"><span className="eyebrow">MAKE YOURSELF AT HOME</span><h1>{t.settingsHeading}</h1><p className="page-intro">{t.settingsIntro}</p>
+            <section className="install-card"><BrandMark className="install-symbol" /><div><h2>{pt.title}</h2><p>{pt.description}</p></div><span className="install-status">{pwa.installed ? pt.installed : pt.browser}</span>{pwa.canInstall && <button className="primary-button" disabled={pwa.installing} onClick={() => void pwa.install()}>{pwa.installing ? pt.installing : pt.install}</button>}<details><summary>{pt.instructions}</summary><h3>{pt.ios}</h3><p>{pt.iosSteps}</p><h3>{pt.android}</h3><p>{pt.androidSteps}</p></details><p className="offline-readiness">{pwa.failed ? pt.unavailable : pwa.ready ? pt.ready : pt.preparing}</p><p className="setting-hint">{pt.privacy}</p></section>
             <section className="settings-section"><div className="section-heading"><Globe2 size={19} /><h2>{t.language}</h2></div><div className="segmented-control"><button className={locale === 'ja' ? 'selected' : ''} aria-pressed={locale === 'ja'} onClick={() => changeLocale('ja')}>日本語{locale === 'ja' && <Check size={16} />}</button><button className={locale === 'ko' ? 'selected' : ''} aria-pressed={locale === 'ko'} onClick={() => changeLocale('ko')}>한국어{locale === 'ko' && <Check size={16} />}</button></div><p className="setting-hint">{t.languageHint}</p><h3 className="setting-subheading">{t.region}</h3><div className="segmented-control"><button className={region === 'JP' ? 'selected' : ''} aria-pressed={region === 'JP'} onClick={() => changeRegion('JP')}>{t.japan}{region === 'JP' && <Check size={16} />}</button><button className={region === 'KR' ? 'selected' : ''} aria-pressed={region === 'KR'} onClick={() => changeRegion('KR')}>{t.korea}{region === 'KR' && <Check size={16} />}</button></div><p className="setting-hint">{t.regionHint}</p></section>
             <section className="settings-section"><div className="section-heading"><LockKeyhole size={19} /><h2>{t.privacy}</h2></div><label className="save-setting"><span>{t.saveHistory}</span><input type="checkbox" role="switch" checked={saveHistory} onChange={event => setPreferences(current => ({ ...current, saveHistory: event.target.checked }))} /><span className="switch-visual" aria-hidden="true" /></label><p className="setting-hint">{t.saveDescription}</p><div className="data-actions"><button className="secondary-button" onClick={exportChat} disabled={!messages.length}><ArrowDownToLine size={16} />{t.export}</button><button className="secondary-button danger-button" onClick={() => setClearConfirmation('all')}><Trash2 size={16} />{t.clear}</button></div>{consent && <button className="text-button revoke-button" onClick={() => { cancelRequest(); setConsent(false); setError(''); setRetryMessages(null); setNotice(t.consentRevoked); }}>{t.revokeConsent}</button>}</section>
-            <section className="settings-section"><div className="section-heading"><ShieldCheck size={19} /><h2>{t.mode}</h2><span className={`mode-pill ${isLive ? 'live' : ''}`}><span />{isLive ? t.online : t.demo}</span></div><p className="setting-hint">{isLive ? t.liveDescription : t.demoDescription}</p>{configError && <div className="config-warning"><p>{t.configFallback}</p><button className="text-button" disabled={configLoading} onClick={() => void loadConfig()}><RefreshCw size={14} className={configLoading ? 'spinner' : ''} />{configLoading ? t.connectRetry : t.retryConnection}</button></div>}</section>
+            <section className="settings-section"><div className="section-heading"><ShieldCheck size={19} /><h2>{t.mode}</h2><span className={`mode-pill ${isLive ? 'live' : ''}`}><span />{isLive ? t.online : t.demo}</span></div><p className="setting-hint">{isLive ? t.liveDescription : t.demoDescription}</p>{configError && <div className="config-warning"><p>{isLive ? pt.connectionError : pt.connectionHelp}</p><button className="text-button" disabled={configLoading} onClick={() => void loadConfig()}><RefreshCw size={14} className={configLoading ? 'spinner' : ''} />{configLoading ? t.connectRetry : t.retryConnection}</button></div>}</section>
             {renderSupport()}<p className="settings-disclaimer">{t.disclaimer}</p><div className="settings-footer"><Brand locale={locale} /><span>v0.1 · IPPO PROJECT</span></div>
           </div>}
         </main>
