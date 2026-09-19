@@ -90,7 +90,7 @@ export default {
       const reply = await env.AI.run('@cf/qwen/qwen3-30b-a3b-fp8', {
         messages: [{ role: 'system', content: systemPrompt(body) }, ...body.messages], max_tokens: 384, temperature: 0.6,
       });
-      const answer = extractMissionReply(reply);
+      const answer = extractMissionReply(reply, body.allowMission === true);
       return answer ? json({ mode: 'live', ...answer }) : fail('provider_unavailable', 503, locale);
     } catch {
       // Never log prompts, provider error payloads, IP addresses or tokens.

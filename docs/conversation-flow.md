@@ -21,3 +21,8 @@ Cloudflare Workers Static Assets + Workers AI + D1 + Turnstile을 한 계정·�
 운영 URL: https://ippo.hyscodebase.workers.dev
 
 Cloudflare 대시보드에서 Workers Free / Current plan을 직접 확인했습니다. 유료 전환하지 않았습니다. 무료 한도는 계정 전체에 적용되며 무제한 사용을 뜻하지 않습니다. [Workers AI 요금](https://developers.cloudflare.com/workers-ai/platform/pricing/), [정적 자산 호스팅](https://developers.cloudflare.com/workers/static-assets/), [Netlify 요금](https://www.netlify.com/pricing/), [Vercel Hobby](https://vercel.com/docs/plans/hobby)
+
+
+## 미션 제안 간격
+처음 세 번의 사용자 메시지에는 대화에 집중하고, 네 번째부터 맥락에 맞을 때만 제안한다. 마지막 제안 이후 사용자 메시지 다섯 개를 기다리며, 미룬 미션은 여덟 개를 기다린다. 진행 중인 미션이 있으면 추가 제안하지 않는다. 직접 미션을 요청하면 간격을 생략하되 거절이나 위기 표현이 우선한다. 재시도는 대화 횟수를 늘리지 않는다.
+프런트엔드는 저장된 미션 상태로 간격을 판단하고, 서버는 해당 턴의 허용 여부를 AI 지침에 반영하며 비허용 턴의 미션 마커를 제거한다. 모델의 일반 문장까지 결정적으로 통제할 수는 없지만 비허용 턴에는 활동 제안 대신 경청하도록 지시한다.

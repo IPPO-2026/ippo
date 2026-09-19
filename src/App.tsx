@@ -23,6 +23,7 @@ import {
 import type { DisplayMessage } from "./local-state";
 import {
   demoMission,
+  canSuggestMission,
   isMissionId,
   missionContent,
   type MissionState,
@@ -231,6 +232,7 @@ export default function App() {
         mode: config.mode,
       },
     ];
+    const allowMission = canSuggestMission(next);
     const generation = session.current,
       controller = new AbortController();
     request.current = controller;
@@ -248,7 +250,7 @@ export default function App() {
       if (config.mode === "demo") {
         const latest = next.at(-1)!.content,
           turn = next.filter((m) => m.role === "user").length - 1;
-        const mission = demoMission(latest, turn);
+        const mission = allowMission ? demoMission(latest, turn) : undefined;
         answer = {
           mode: "demo",
           message: mission
@@ -267,6 +269,7 @@ export default function App() {
             locale,
             region,
             consent: true,
+            allowMission,
             turnstileToken: currentToken,
             messages: contextMessages(
               next.filter((m) => m.mode !== "demo"),
@@ -296,7 +299,7 @@ export default function App() {
             role: "assistant" as const,
             content: answer.message,
             mode: answer.mode,
-            ...(isMissionId(answer.mission) &&
+            ...(allowMission && isMissionId(answer.mission) &&
             !current.some((m) => m.mission?.status === "active")
               ? {
                   mission: { id: answer.mission, status: "suggested" as const },

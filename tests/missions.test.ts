@@ -35,3 +35,39 @@ describe("conversation missions", () => {
     expect(demoMission("죽고 싶어요", 1)).toBeUndefined();
   });
 });
+
+import { canSuggestMission } from "../src/chat-missions";
+import { parseChatRequest, systemPrompt } from "../worker/policy";
+const user = (content = "오늘 이야기를 더 하고 싶어요") => ({ role: "user", content });
+const proposal = (status: "suggested" | "active" | "completed" | "deferred") => ({
+  role: "assistant", content: "작은 한 걸음", mission: { id: "water" as const, status },
+});
+describe("mission pacing", () => {
+  it("listens for the first three turns, then allows an optional proposal", () => {
+    expect(canSuggestMission(Array.from({ length: 3 }, () => user()))).toBe(false);
+    expect(canSuggestMission(Array.from({ length: 4 }, () => user()))).toBe(true);
+  });
+  it("waits five turns after a suggestion or completion and eight after deferral", () => {
+    for (const status of ["suggested", "completed", "deferred"] as const) {
+      const gap = status === "deferred" ? 8 : 5;
+      expect(canSuggestMission([proposal(status), ...Array.from({length: gap - 1}, () => user())])).toBe(false);
+      expect(canSuggestMission([proposal(status), ...Array.from({length: gap}, () => user())])).toBe(true);
+    }
+  });
+  it("honors explicit Korean/Japanese requests but not refusal, crisis or active missions", () => {
+    for (const content of ["작은 미션을 제안해 주세요", "小さな一歩を提案してください"]) {
+      expect(canSuggestMission([user(content)])).toBe(true);
+      expect(canSuggestMission([proposal("active"), user(content)])).toBe(false);
+    }
+    for (const content of ["미션 말고 대화하고 싶어요", "미션은 나중에 추천해 주세요", "ミッションはいらない", "죽고 싶어요"]) {
+      expect(canSuggestMission(Array.from({length: 12}, () => user(content)))).toBe(false);
+    }
+  });
+  it("suppresses model markers when the current turn is not eligible", () => {
+    expect(extractMissionReply({response: "이야기해주세요 [[mission:water]]"}, false)).toEqual({message: "이야기해주세요"});
+    const body = {locale: "ko", region: "KR", consent: true, messages: [user()]};
+    expect(parseChatRequest({...body, allowMission: "true"})).toBeNull();
+    expect(systemPrompt(parseChatRequest(body)!)).toContain("No mission this turn");
+    expect(systemPrompt(parseChatRequest({...body, allowMission: true})!)).toContain("A mission is eligible");
+  });
+});

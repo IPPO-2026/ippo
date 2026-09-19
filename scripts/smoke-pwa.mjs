@@ -102,7 +102,7 @@ try {
       navigator.serviceWorker.controller &&
       !document.querySelector(".connection-banner"),
   );
-  await page.getByRole("textbox").fill("조금 지친 것 같아요");
+  await page.getByRole("textbox").fill("피곤해요. 작은 미션을 제안해 주세요");
   await send.click();
   await page.getByRole("button", { name: "시작하기", exact: true }).click();
   await page.getByRole("button", { name: "메뉴", exact: true }).click();

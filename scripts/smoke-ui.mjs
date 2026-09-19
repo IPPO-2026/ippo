@@ -44,7 +44,12 @@ try {
       0,
       "no unrelated mission before conversation",
     );
-    await page.getByRole("textbox").fill("조금 지친 것 같아요");
+    for (let turn = 0; turn < 3; turn++) {
+      await page.getByRole("textbox").fill("조금 지친 것 같아요");
+      await page.getByRole("button", { name: "메시지 보내기", exact: true }).click();
+      assert.equal(await page.locator(".inline-mission").count(), 0, "early conversation has no mission");
+    }
+    await page.getByRole("textbox").fill("피곤해요. 작은 미션을 제안해 주세요");
     await page
       .getByRole("button", { name: "메시지 보내기", exact: true })
       .click();
@@ -70,7 +75,7 @@ try {
     await page
       .getByText("해냈어요. 이 한 걸음이면 충분해요.", { exact: true })
       .waitFor();
-    await page.getByRole("textbox").fill("음악을 듣고 싶어요");
+    await page.getByRole("textbox").fill("음악 미션을 추천해 주세요");
     await page
       .getByRole("button", { name: "메시지 보내기", exact: true })
       .click();
