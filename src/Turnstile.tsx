@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Locale } from './shared';
 import { copy } from './copy';
+import { Check, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 
 declare global {
   interface Window {
     turnstile?: {
-      render: (container: HTMLElement, options: { sitekey: string; action: string; theme: 'light'; language: string; size: 'flexible'; callback: (token: string) => void; 'expired-callback': () => void; 'error-callback': () => void }) => string;
+      render: (container: HTMLElement, options: { sitekey: string; action: string; theme: 'light'; language: string; size: 'flexible'; appearance: 'interaction-only'; 'before-interactive-callback': () => void; 'after-interactive-callback': () => void; 'timeout-callback': () => void; callback: (token: string) => void; 'expired-callback': () => void; 'error-callback': () => void }) => string;
       remove: (id: string) => void;
     };
   }
@@ -14,20 +15,25 @@ declare global {
 export default function Turnstile({ siteKey, locale, onToken }: { siteKey: string; locale: Locale; onToken: (token: string) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const [failed, setFailed] = useState(false);
+  const [status, setStatus] = useState<'checking' | 'ready' | 'interaction'>('checking');
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let disposed = false;
     let widget: string | undefined;
     setFailed(false);
+    setStatus('checking');
     onToken('');
     const render = () => {
       if (disposed || !container.current || !window.turnstile || widget !== undefined) return;
       try {
         widget = window.turnstile.render(container.current, {
-          sitekey: siteKey, action: 'chat', theme: 'light', language: locale, size: 'flexible',
-          callback: token => { if (!disposed) onToken(token); },
-          'expired-callback': () => { if (!disposed) onToken(''); },
+          sitekey: siteKey, action: 'chat', theme: 'light', language: locale, size: 'flexible', appearance: 'interaction-only',
+          'before-interactive-callback': () => { if (!disposed) setStatus('interaction'); },
+          'after-interactive-callback': () => { if (!disposed) setStatus('checking'); },
+          'timeout-callback': () => { if (!disposed) { onToken(''); setFailed(true); } },
+          callback: token => { if (!disposed) { onToken(token); setStatus('ready'); setFailed(false); } },
+          'expired-callback': () => { if (!disposed) { onToken(''); setStatus('checking'); } },
           'error-callback': () => { if (!disposed) { onToken(''); setFailed(true); } },
         });
       } catch { if (!disposed) setFailed(true); }
@@ -60,8 +66,13 @@ export default function Turnstile({ siteKey, locale, onToken }: { siteKey: strin
     setAttempt(value => value + 1);
   }
 
+  const ko = locale === 'ko';
   return <div className="verification">
-    <div ref={container} />
-    {failed && <p className="inline-error" role="alert">{copy[locale].verificationError} <button className="text-button" type="button" onClick={retry}>{copy[locale].retry}</button></p>}
+    <div className={`verification-status ${failed ? 'failed' : status}`} role="status" aria-live="polite">
+      {failed ? <ShieldCheck size={14} /> : status === 'ready' ? <Check size={14} /> : status === 'interaction' ? <ShieldCheck size={14} /> : <LoaderCircle size={14} className="verification-spinner" />}
+      <span>{failed ? (ko ? '연결을 다시 확인해 주세요' : '接続をもう一度確認してください') : status === 'ready' ? (ko ? '이야기할 준비가 됐어요' : 'おはなしの準備ができました') : status === 'interaction' ? (ko ? '아래 확인을 완료해 주세요' : '下の確認を完了してください') : (ko ? '안전하게 연결하고 있어요' : '接続を確認しています')}</span>
+      {failed && <button className="verification-retry" type="button" onClick={retry}><RefreshCw size={13} />{copy[locale].retry}</button>}
+    </div>
+    <div ref={container} className="verification-widget" />
   </div>;
 }

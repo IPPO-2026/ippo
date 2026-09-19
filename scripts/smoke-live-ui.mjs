@@ -23,7 +23,7 @@ await context.route(
   (route) =>
     route.fulfill({
       contentType: "application/javascript",
-      body: `window.turnstile={render(element,options){setTimeout(()=>options.callback('synthetic-single-use-token'),0);return 'test-widget'},remove(){}};`,
+      body: `window.turnstile={render(element,options){window.__verificationOptions=options;setTimeout(()=>options.callback('synthetic-single-use-token'),0);return 'test-widget'},remove(){}};`,
     }),
 );
 const page = await context.newPage();
@@ -44,6 +44,18 @@ await page.getByRole("checkbox").click();
 await page.waitForFunction(
   () => !document.querySelector(".send-button").disabled,
 );
+await page.getByText('이야기할 준비가 됐어요', {exact:true}).waitFor();
+assert.equal(await page.evaluate(() => window.__verificationOptions.appearance), 'interaction-only');
+await page.evaluate(() => window.__verificationOptions['expired-callback']());
+assert.equal(await page.locator('.send-button').isDisabled(), true);
+await page.getByText('안전하게 연결하고 있어요', {exact:true}).waitFor();
+await page.evaluate(() => window.__verificationOptions['before-interactive-callback']());
+await page.getByText('아래 확인을 완료해 주세요', {exact:true}).waitFor();
+await page.evaluate(() => window.__verificationOptions['error-callback']());
+await page.getByText('연결을 다시 확인해 주세요', {exact:true}).waitFor();
+await page.locator('.verification-retry').click();
+await page.getByText('이야기할 준비가 됐어요', {exact:true}).waitFor();
+assert.equal(await page.locator('.send-button').isEnabled(), true);
 await context.route("**/api/chat", (route) =>
   route.fulfill({
     status: 429,

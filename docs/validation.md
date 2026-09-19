@@ -66,3 +66,11 @@ GitHub CI는 타입 검사·76개 테스트·빌드·PWA 브라우저 검사·�
 - 공개 사이트 390/1440px 한·일 화면과 로고, 입력창 위치, 프로덕션 서비스 워커를 점검했습니다. Chromium 일반 프로필에서 PWA 설치 적합성 오류가 없음을 확인했습니다.
 - 최종 배포 버전: `78a54d55-65db-4d76-ad08-c6780bacf08e`. 공개 HTTPS에서도 오프라인 재실행·전송 차단 및 온라인 콘솔 오류 없음 확인.
 - 공개 화면 재현: `IPPO_TEST_URL=https://ippo.hyscodebase.workers.dev PLAYWRIGHT_CHROME_CHANNEL=chrome node scripts/smoke-public.mjs` (이 스크립트는 AI 대화를 전송하지 않음).
+
+## 인증 표시 정리와 비밀키 점검 (2026-09-19)
+
+- Turnstile의 공식 `appearance: interaction-only` 옵션으로 추가 확인이 필요한 때만 공급자 위젯을 표시합니다. 앱에서는 연결 중·준비 완료 상태를 작은 민트색 표시로 안내하고, 실패 시 재시도 버튼을 제공합니다. 검증 우회나 iframe 강제 숨김은 적용하지 않습니다.
+- 모의 브라우저 검사에서 준비 완료, 토큰 만료 시 전송 차단, 추가 확인 안내, 오류·재시도 복구를 확인했습니다. 기존 81개 API/정책 테스트도 통과했습니다.
+- 점검 시 Git 전체 참조의 blob 106개에서 현재 Cloudflare OAuth 토큰과 Turnstile secret의 정확한 값이 발견되지 않았습니다. 일반적인 비밀키·개인키·64자리 hex 리터럴 패턴과 비밀 파일 경로 기록에도 해당 항목이 없었습니다.
+- `TURNSTILE_SECRET_KEY`, `IP_HASH_SECRET`은 Cloudflare Worker secrets에 등록되어 있습니다. 후자는 서버에서 원문을 다시 읽을 수 없으므로 exact-value 비교가 아닌 파일 이력·리터럴 패턴 점검을 적용했습니다.
+- Workers AI는 바인딩으로 호출하며 별도 LLM API 키를 소스에 넣지 않습니다. 연결 코드·API 경로·공개 site key는 비밀키가 아닙니다. `wrangler.live.jsonc`, `.dev.vars`, `.env`, 임시 배포 산출물은 Git 제외입니다.
