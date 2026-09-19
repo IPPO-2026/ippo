@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractMissionReply } from "../worker/policy";
-import { demoMission, validMission } from "../src/chat-missions";
+import { demoMission, isCrisisText, validMission } from "../src/chat-missions";
 describe("conversation missions", () => {
   it("extracts one allowed model proposal and removes protocol markup", () => {
     expect(
@@ -33,6 +33,8 @@ describe("conversation missions", () => {
   it("keeps demo suggestions context based and excludes crisis phrases", () => {
     expect(demoMission("조금 지친 것 같아요", 0)).toBe("water");
     expect(demoMission("죽고 싶어요", 1)).toBeUndefined();
+    expect(isCrisisText("死にたい")).toBe(true);
+    expect(isCrisisText("오늘은 피곤해요")).toBe(false);
   });
 });
 

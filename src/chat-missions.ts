@@ -20,11 +20,11 @@ export function validMission(value: unknown): value is MissionState {
     ["suggested", "active", "completed", "deferred"].includes(m.status)
   );
 }
+export function isCrisisText(text: string): boolean {
+  return /死にたい|自殺|消えたい|죽고|자살|사라지고|kill myself|suicid/i.test(text);
+}
 export function demoMission(text: string, turn: number): MissionId | undefined {
-  if (
-    /死にたい|自殺|消えたい|죽고|자살|사라지고|kill myself|suicid/i.test(text)
-  )
-    return;
+  if (isCrisisText(text)) return;
   if (/疲|つら|しんど|지친|지쳤|피곤|힘들|tired/i.test(text)) return "water";
   if (/片付|정리|책상/.test(text)) return "tidy";
   if (/音楽|음악/.test(text)) return "music";
@@ -39,7 +39,7 @@ export function canSuggestMission(messages: readonly {
 }[]): boolean {
   const latest = messages.at(-1);
   if (!latest || latest.role !== "user") return false;
-  if (/死にたい|自殺|消えたい|죽고|자살|사라지고|kill myself|suicid/i.test(latest.content)) return false;
+  if (isCrisisText(latest.content)) return false;
   if (/싫|말고|말아|그만|안 할|안할|필요 없|필요없|나중|하지 마|하지마|やめ|いらない|不要|したくない|後で|あとで|ではなく|じゃなく/.test(latest.content)) return false;
   if (messages.some(m => m.mission?.status === "active")) return false;
   const explicit = /(?:미션|한\s*걸음).*(?:추천|제안|알려|줄래|주세요|하고 싶)|(?:추천|제안).*(?:미션|한\s*걸음)|(?:ミッション|一歩).*(?:提案|教えて|おすすめ|ください)|(?:提案|おすすめ).*(?:ミッション|一歩)/.test(latest.content);

@@ -62,7 +62,7 @@ flowchart LR
 
 Cloudflare **Workers Free** 플랜과 기본 `workers.dev` 주소를 사용합니다. 정적 자산 요청은 무료이며, AI는 계정 전체 **10,000 neurons/일** 범위입니다. 무료 플랜에서 할당량을 넘으면 호출이 실패합니다. 무제한 AI 대화나 상용 규모의 무상 운영을 보장하지 않습니다. [정적 자산 요금](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/), [AI 요금](https://developers.cloudflare.com/workers-ai/platform/pricing/)
 
-초기 앱 제한은 전체 60회/일·IP별 6회/일입니다. 요금제 한도와 앱 제한은 다르며, 같은 Cloudflare 계정의 다른 서비스도 무료 AI 할당량을 함께 사용합니다. [배포 가이드와 비용 계산](docs/deployment.md)을 확인하세요.
+초기 앱 제한은 전체 60회/일·IP별 10회/일입니다. 요금제 한도와 앱 제한은 다르며, 같은 Cloudflare 계정의 다른 서비스도 무료 AI 할당량을 함께 사용합니다. [배포 가이드와 비용 계산](docs/deployment.md)을 확인하세요.
 
 [대화 중심 UI/UX와 호스팅 선택](docs/conversation-flow.md)
 

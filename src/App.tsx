@@ -24,11 +24,13 @@ import type { DisplayMessage } from "./local-state";
 import {
   demoMission,
   canSuggestMission,
+  isCrisisText,
   isMissionId,
   missionContent,
   type MissionState,
 } from "./chat-missions";
 import Turnstile from "./Turnstile";
+import PaymentDemo from "./PaymentDemo";
 import { usePwa } from "./usePwa";
 import { pwaCopy } from "./pwa-copy";
 import "./conversation.css";
@@ -53,6 +55,12 @@ export default function App() {
   const [configError, setConfigError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState("");
+  const [paymentOpen, setPaymentOpen] = useState(() =>
+    ["success", "fail"].includes(
+      new URLSearchParams(location.search).get("paymentDemo") || "",
+    ),
+  );
   const [consent, setConsent] = useState(false);
   const [token, setToken] = useState("");
   const [verification, setVerification] = useState(0);
@@ -84,6 +92,7 @@ export default function App() {
     setDraft("");
     setConsent(false);
     setError("");
+    setErrorCode("");
     setRetry(null);
     try {
       localStorage.removeItem(STORAGE.history);
@@ -265,6 +274,7 @@ export default function App() {
     busy.current = true;
     setLoading(true);
     setError("");
+    setErrorCode("");
     setRetry(null);
     setMessages(next);
     setDraft("");
@@ -298,7 +308,7 @@ export default function App() {
             allowMission,
             turnstileToken: currentToken,
             messages: contextMessages(
-              next.filter((m) => m.mode !== "demo"),
+              next.filter((m) => m.mode !== "demo" && m.mode !== "local"),
               config.maxContextCharacters,
             ),
           }),
@@ -343,9 +353,9 @@ export default function App() {
         not_configured: t.notConfigured,
         verification_required: t.verificationError,
       };
-      setError(
-        labels[caught instanceof Error ? caught.message : ""] || t.error,
-      );
+      const code = caught instanceof Error ? caught.message : "";
+      setErrorCode(code);
+      setError(labels[code] || t.error);
       setRetry(next);
     } finally {
       clearTimeout(timeout);
@@ -356,6 +366,47 @@ export default function App() {
         setVerification((v) => v + 1);
       }
     }
+  }
+  function requestLocalMission() {
+    const recent = messages
+      .filter((message) => message.role === "user")
+      .slice(-3)
+      .map((message) => message.content)
+      .join(" ");
+    if (!recent || isCrisisText(recent) || active) return;
+    const turn = messages.filter((message) => message.role === "user").length;
+    const mission = demoMission(recent, turn) ?? "window";
+    setMessages((current) =>
+      [
+        ...current,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant" as const,
+          mode: "local" as const,
+          content: ko
+            ? "지금까지 나눈 이야기를 바탕으로, 부담 없는 한 걸음을 골랐어요. 마음이 내키지 않으면 미뤄도 괜찮아요."
+            : "これまでのおはなしから、負担の少ない一歩を選びました。気が向かなければ、見送っても大丈夫です。",
+          mission: { id: mission, status: "suggested" as const },
+        },
+      ].slice(-60),
+    );
+    setError("");
+    setErrorCode("");
+    setRetry(null);
+  }
+  function closePayment() {
+    setPaymentOpen(false);
+    const url = new URL(location.href);
+    [
+      "paymentDemo",
+      "paymentKey",
+      "orderId",
+      "amount",
+      "paymentType",
+      "code",
+      "message",
+    ].forEach((key) => url.searchParams.delete(key));
+    history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
   }
   const help =
     region === "JP"
@@ -475,7 +526,9 @@ export default function App() {
                       <span>
                         {message.mode === "demo"
                           ? t.responseDemo
-                          : t.responseAI}
+                          : message.mode === "local"
+                            ? t.responseLocal
+                            : t.responseAI}
                       </span>
                     </div>
                   )}
@@ -565,7 +618,7 @@ export default function App() {
         {error && (
           <div className="conversation-error" role="alert">
             <p>{error}</p>
-            {retry && (
+            {retry && errorCode !== "daily_limit" && (
               <button
                 disabled={
                   loading || configError || pwa.offline || (isLive && (!consent || !token))
@@ -574,6 +627,31 @@ export default function App() {
               >
                 {t.retry}
               </button>
+            )}
+            {errorCode === "daily_limit" && (
+              <div className="limit-actions">
+                {!active &&
+                  !isCrisisText(
+                    messages
+                      .filter((message) => message.role === "user")
+                      .slice(-3)
+                      .map((message) => message.content)
+                      .join(" "),
+                  ) && (
+                    <button className="limit-mission" onClick={requestLocalMission}>
+                      <Sprout size={16} />
+                      {ko
+                        ? "대화에서 작은 미션 찾기"
+                        : "おはなしから一歩を探す"}
+                    </button>
+                  )}
+                <button
+                  className="limit-payment"
+                  onClick={() => setPaymentOpen(true)}
+                >
+                  {ko ? "추가 결제하기" : "追加購入を見る"}
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -802,6 +880,19 @@ export default function App() {
             <X size={15} />
           </button>
         </div>
+      )}
+      {paymentOpen && (
+        <PaymentDemo
+          locale={locale}
+          result={
+            new URLSearchParams(location.search).get("paymentDemo") === "success"
+              ? "success"
+              : new URLSearchParams(location.search).get("paymentDemo") === "fail"
+                ? "fail"
+                : null
+          }
+          onClose={closePayment}
+        />
       )}
     </div>
   );

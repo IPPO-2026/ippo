@@ -84,7 +84,7 @@ export default {
       const day = now.toISOString().slice(0, 10);
       const midnight = Date.parse(`${day}T00:00:00Z`);
       const expiresAt = Math.floor(midnight / 1000) + 2 * 86400;
-      const personal = await reserve(env.DB, await ipBucket(ip, env.IP_HASH_SECRET, day), dailyLimit(env.DAILY_IP_LIMIT, 6), expiresAt);
+      const personal = await reserve(env.DB, await ipBucket(ip, env.IP_HASH_SECRET, day), dailyLimit(env.DAILY_IP_LIMIT, 10), expiresAt);
       const global = personal && await reserve(env.DB, `${day}:global`, dailyLimit(env.DAILY_GLOBAL_LIMIT, 60), expiresAt);
       if (!global) return fail('daily_limit', 429, locale, { 'Retry-After': String(Math.ceil((midnight + 86400000 - now.getTime()) / 1000)) });
       const reply = await env.AI.run('@cf/qwen/qwen3-30b-a3b-fp8', {

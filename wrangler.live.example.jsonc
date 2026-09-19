@@ -20,7 +20,7 @@
     "CHAT_MODE": "live",
     "TURNSTILE_SITE_KEY": "REPLACE_WITH_PUBLIC_SITE_KEY",
     "DAILY_GLOBAL_LIMIT": "60",
-    "DAILY_IP_LIMIT": "6"
+    "DAILY_IP_LIMIT": "10"
   },
   "triggers": { "crons": ["0 0 * * *"] },
   "observability": { "enabled": false }

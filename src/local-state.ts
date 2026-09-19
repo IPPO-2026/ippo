@@ -4,7 +4,7 @@ import { MAX_MESSAGE_LENGTH, MAX_MESSAGES } from './shared';
 
 export const STORAGE = { preferences: 'ippo.preferences.v1', history: 'ippo.history.v1', step: 'ippo.step.v1' };
 export type Preferences = { locale: Locale; region: Region; saveHistory: boolean };
-export type DisplayMessage = ChatMessage & { id: string; mode?: 'demo' | 'live'; mission?: MissionState };
+export type DisplayMessage = ChatMessage & { id: string; mode?: 'demo' | 'live' | 'local'; mission?: MissionState };
 
 export function readJSON(key: string): unknown {
   try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }

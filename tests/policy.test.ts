@@ -97,6 +97,6 @@ describe('privacy-preserving budget identifiers', () => {
   });
 
   it.each([undefined, '', 'NaN', 'Infinity', '0', '-1', '1.5', '1001'])('rejects invalid configured limit %s', (limit) => {
-    expect(dailyLimit(limit, 6)).toBe(6);
+    expect(dailyLimit(limit, 10)).toBe(10);
   });
 });

@@ -66,9 +66,50 @@ await context.route("**/api/chat", (route) =>
     },
   }),
 );
+await context.route("https://js.tosspayments.com/v2/standard", (route) =>
+  route.fulfill({
+    contentType: "application/javascript",
+    body: `window.TossPayments=()=>({widgets:()=>({
+      setAmount:async amount=>{window.__paymentAmount=amount},
+      renderPaymentMethods:async({selector})=>{document.querySelector(selector).innerHTML='<div data-testid="toss-methods">간편결제 선택 데모</div>';return{destroy:async()=>{}}},
+      renderAgreement:async({selector})=>{document.querySelector(selector).innerHTML='<div data-testid="toss-agreement">테스트 약관</div>';return{destroy:async()=>{}}},
+      requestPayment:async request=>{window.__paymentRequest=request}
+    })});`,
+  }),
+);
 await page.getByRole("button", { name: "메시지 보내기", exact: true }).click();
 await page.getByRole("alert").filter({ hasText: "한도" }).waitFor();
 assert.equal(await page.locator(".message-row.assistant").count(), 0);
+await page.getByRole("button", { name: "추가 결제하기", exact: true }).click();
+await page
+  .getByRole("heading", { name: "대화 이용권 결제 데모", exact: true })
+  .waitFor();
+await page.getByText("간편결제 선택 데모", { exact: true }).waitFor();
+assert.deepEqual(await page.evaluate(() => window.__paymentAmount), {
+  currency: "KRW",
+  value: 1000,
+});
+await page
+  .getByRole("button", { name: "데모 결제 진행하기", exact: true })
+  .click();
+assert.equal(
+  await page.evaluate(() => window.__paymentRequest.orderName),
+  "잇포 추가 대화 10회 (데모)",
+);
+await page
+  .getByRole("button", { name: "결제 데모 닫기", exact: true })
+  .click();
+await page
+  .getByRole("button", { name: "대화에서 작은 미션 찾기", exact: true })
+  .click();
+await page.getByText("기기에서 고른 한 걸음", { exact: true }).waitFor();
+await page.getByRole("heading", { name: "창밖을, 잠깐 바라봐요." }).waitFor();
+await page
+  .locator(".inline-mission", {
+    has: page.getByRole("heading", { name: "창밖을, 잠깐 바라봐요." }),
+  })
+  .getByRole("button", { name: "나중에 할게요", exact: true })
+  .click();
 await context.unroute("**/api/chat");
 await context.route("**/api/chat", (route) =>
   route.fulfill({ json: { mode: "demo", message: "DO NOT DISPLAY AS LIVE" } }),

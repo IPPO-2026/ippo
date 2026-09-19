@@ -24,6 +24,7 @@
     "deploy:pages": "npm run build:pages && wrangler pages deploy --cwd pages --project-name ippo-app --branch main"
   },
   "dependencies": {
+    "@tosspayments/tosspayments-sdk": "^2.8.1",
     "lucide-react": "^1.47.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
