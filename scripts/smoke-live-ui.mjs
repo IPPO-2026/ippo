@@ -27,7 +27,8 @@ await context.route(
     }),
 );
 const page = await context.newPage();
-await page.goto(process.env.IPPO_TEST_URL || "http://127.0.0.1:8787");
+const baseUrl = process.env.IPPO_TEST_URL || "http://127.0.0.1:8787";
+await page.goto(baseUrl);
 await page.getByRole("button", { name: "メニュー", exact: true }).click();
 await page.getByRole("combobox").first().selectOption("ko");
 await page.getByRole("button", { name: "닫기", exact: true }).click();
@@ -77,6 +78,18 @@ await context.route("https://js.tosspayments.com/v2/standard", (route) =>
     })});`,
   }),
 );
+await context.route("**/api/demo-topup/order", (route) =>
+  route.fulfill({
+    json: {
+      orderId: "IPPO_DEMO_serverowned1234567890",
+      amount: 1000,
+      extraUses: 10,
+    },
+  }),
+);
+await context.route("**/api/demo-topup/confirm", (route) =>
+  route.fulfill({ json: { granted: true, extraUses: 10 } }),
+);
 await page.getByRole("button", { name: "메시지 보내기", exact: true }).click();
 await page.getByRole("alert").filter({ hasText: "한도" }).waitFor();
 assert.equal(await page.locator(".message-row.assistant").count(), 0);
@@ -95,6 +108,10 @@ await page
 assert.equal(
   await page.evaluate(() => window.__paymentRequest.orderName),
   "잇포 추가 대화 10회 (데모)",
+);
+assert.equal(
+  await page.evaluate(() => window.__paymentRequest.orderId),
+  "IPPO_DEMO_serverowned1234567890",
 );
 await page
   .getByRole("button", { name: "결제 데모 닫기", exact: true })
@@ -180,6 +197,12 @@ release();
 await page.getByRole("heading", { name: "오늘은 어떤 하루였나요?" }).waitFor();
 assert.equal(await page.getByText("STALE RESPONSE MUST NOT RETURN").count(), 0);
 assert.equal(await page.getByRole("checkbox").isChecked(), false);
+await page.goto(
+  `${baseUrl}/?paymentDemo=success&paymentKey=test_payment_key_1234567890&orderId=IPPO_DEMO_serverowned1234567890&amount=1000`,
+);
+await page
+  .getByRole("heading", { name: "오늘의 대화 10회가 추가됐어요" })
+  .waitFor();
 console.log(
   "PASS: mocked live contract — consent, independent locale/region, localized quota error, no disguised demo response, bounded context and clear aborts pending response. This script does not call the real model.",
 );

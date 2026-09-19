@@ -2,6 +2,7 @@ import { MAX_CONTEXT_CHARACTERS, MAX_MESSAGE_LENGTH } from '../src/shared';
 import type { Locale } from '../src/shared';
 import { demoReply, extractMissionReply, parseChatRequest, systemPrompt } from './policy';
 import { dailyLimit, ipBucket, reserve } from './budget';
+import { confirmDemoPayment, createDemoOrder, grantedUses } from './demo-payment';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -11,6 +12,7 @@ export interface Env {
   TURNSTILE_SITE_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   IP_HASH_SECRET?: string;
+  TOSS_TEST_SECRET_KEY?: string;
   DAILY_GLOBAL_LIMIT?: string;
   DAILY_IP_LIMIT?: string;
 }
@@ -57,10 +59,20 @@ export default {
       return json({ mode: env.CHAT_MODE === 'live' ? 'live' : 'demo', turnstileSiteKey: env.TURNSTILE_SITE_KEY || null, maxMessageLength: MAX_MESSAGE_LENGTH, maxContextCharacters: MAX_CONTEXT_CHARACTERS });
     }
     if (url.pathname === '/api/health' && request.method === 'GET') return json({ ok: true, service: 'ippo', mode: env.CHAT_MODE === 'live' ? 'live' : 'demo' });
-    if (url.pathname !== '/api/chat') return json({ code: 'not_found' }, 404);
+    const isChat = url.pathname === '/api/chat';
+    const isOrder = url.pathname === '/api/demo-topup/order';
+    const isConfirm = url.pathname === '/api/demo-topup/confirm';
+    if (!isChat && !isOrder && !isConfirm) return json({ code: 'not_found' }, 404);
     if (request.method !== 'POST') return json({ code: 'method_not_allowed' }, 405, { Allow: 'POST' });
     if (request.headers.get('Origin') !== url.origin) return fail('forbidden', 403);
     if (request.headers.get('Content-Type')?.toLowerCase().split(';')[0].trim() !== 'application/json') return fail('invalid_request', 415);
+    const paymentIp = request.headers.get('CF-Connecting-IP');
+    if (isOrder || isConfirm) {
+      if (!paymentIp) return fail('forbidden', 403);
+      return isOrder
+        ? createDemoOrder(request, env, paymentIp)
+        : confirmDemoPayment(request, env, paymentIp);
+    }
     let raw: unknown;
     try { raw = await boundedJson(request); } catch { return fail('invalid_request', 400); }
     const locale = (raw as { locale?: string } | null)?.locale === 'ko' ? 'ko' : 'ja';
@@ -84,7 +96,9 @@ export default {
       const day = now.toISOString().slice(0, 10);
       const midnight = Date.parse(`${day}T00:00:00Z`);
       const expiresAt = Math.floor(midnight / 1000) + 2 * 86400;
-      const personal = await reserve(env.DB, await ipBucket(ip, env.IP_HASH_SECRET, day), dailyLimit(env.DAILY_IP_LIMIT, 10), expiresAt);
+      const personalBucket = await ipBucket(ip, env.IP_HASH_SECRET, day);
+      const personalLimit = dailyLimit(env.DAILY_IP_LIMIT, 10) + await grantedUses(env.DB, personalBucket, day);
+      const personal = await reserve(env.DB, personalBucket, personalLimit, expiresAt);
       const global = personal && await reserve(env.DB, `${day}:global`, dailyLimit(env.DAILY_GLOBAL_LIMIT, 60), expiresAt);
       if (!global) return fail('daily_limit', 429, locale, { 'Retry-After': String(Math.ceil((midnight + 86400000 - now.getTime()) / 1000)) });
       const reply = await env.AI.run('@cf/qwen/qwen3-30b-a3b-fp8', {
@@ -99,6 +113,11 @@ export default {
     }
   },
   async scheduled(_event: ScheduledController, env: Env): Promise<void> {
-    if (env.DB) await env.DB.prepare('DELETE FROM request_budget WHERE expires_at <= ?').bind(Math.floor(Date.now() / 1000)).run();
+    if (env.DB) {
+      const now = Math.floor(Date.now() / 1000);
+      await env.DB.prepare('DELETE FROM request_budget WHERE expires_at <= ?').bind(now).run();
+      await env.DB.prepare('DELETE FROM demo_payment_orders WHERE expires_at <= ?').bind(now).run();
+      await env.DB.prepare('DELETE FROM demo_payment_grants WHERE expires_at <= ?').bind(now).run();
+    }
   },
 };

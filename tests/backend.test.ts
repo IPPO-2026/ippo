@@ -16,6 +16,7 @@ function database() {
   const sqlite = new DatabaseSync(':memory:');
   databases.push(sqlite);
   sqlite.exec(readFileSync(new NodeURL('../migrations/0001_request_budget.sql', import.meta.url), 'utf8'));
+  sqlite.exec(readFileSync(new NodeURL('../migrations/0002_demo_payment_topups.sql', import.meta.url), 'utf8'));
   const db = {
     prepare(sql: string) {
       return {
@@ -40,6 +41,7 @@ function setup() {
     CHAT_MODE: 'live', AI: { run }, DB: db,
     TURNSTILE_SITE_KEY: 'public-site-key', TURNSTILE_SECRET_KEY: 'private-turnstile-secret',
     IP_HASH_SECRET: 'private-ip-hash-secret-at-least-32-characters',
+    TOSS_TEST_SECRET_KEY: 'private-toss-test-secret',
   };
   const fetchMock = vi.fn().mockImplementation(async () => Response.json({ success: true, hostname: 'ippo.example', action: 'chat' }));
   vi.stubGlobal('fetch', fetchMock);
@@ -49,6 +51,18 @@ function setup() {
 function chat(payload: unknown = valid, headerOverrides: Record<string, string> = {}) {
   return new Request(`${origin}/api/chat`, {
     method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': ip, ...headerOverrides },
+    body: JSON.stringify(payload),
+  });
+}
+
+function payment(path: 'order' | 'confirm', payload: unknown, requestIp = ip) {
+  return new Request(`${origin}/api/demo-topup/${path}`, {
+    method: 'POST',
+    headers: {
+      Origin: origin,
+      'Content-Type': 'application/json',
+      'CF-Connecting-IP': requestIp,
+    },
     body: JSON.stringify(payload),
   });
 }
@@ -266,5 +280,84 @@ describe('atomic quotas and data expiry using production SQLite statements', () 
     expect(rows).toHaveLength(2);
     expect(rows.every(row => row.bucket.startsWith('2026-09-20:'))).toBe(true);
     expect(JSON.stringify(rows)).not.toContain(ip);
+  });
+});
+
+describe('verified test-payment quota grants', () => {
+  it('creates a server-owned order, approves it once, and grants ten personal uses', async () => {
+    const { env, fetchMock, sqlite } = setup();
+    env.DAILY_IP_LIMIT = '1';
+    env.DAILY_GLOBAL_LIMIT = '20';
+    const orderResponse = await worker.fetch(payment('order', { locale: 'ko' }), env);
+    expect(orderResponse.status).toBe(200);
+    const order = await orderResponse.json() as { orderId: string; amount: number; extraUses: number };
+    expect(order).toMatchObject({ amount: 1000, extraUses: 10 });
+    expect(order.orderId).toMatch(/^IPPO_DEMO_/);
+
+    const paymentKey = 'test_payment_key_1234567890';
+    fetchMock.mockResolvedValueOnce(Response.json({
+      paymentKey,
+      orderId: order.orderId,
+      totalAmount: 1000,
+      status: 'DONE',
+    }));
+    const confirm = await worker.fetch(payment('confirm', {
+      locale: 'ko', paymentKey, orderId: order.orderId, amount: 1000,
+    }), env);
+    expect(confirm.status).toBe(200);
+    expect(await confirm.json()).toEqual({ granted: true, extraUses: 10 });
+    const [confirmUrl, confirmOptions] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(confirmUrl).toBe('https://api.tosspayments.com/v1/payments/confirm');
+    expect(confirmOptions.headers).toMatchObject({ 'Idempotency-Key': order.orderId });
+    expect(JSON.stringify(sqlite.prepare('SELECT * FROM demo_payment_grants').get())).not.toContain(paymentKey);
+    expect(JSON.stringify(sqlite.prepare('SELECT * FROM demo_payment_grants').get())).not.toContain(ip);
+
+    const repeated = await worker.fetch(payment('confirm', {
+      locale: 'ko', paymentKey, orderId: order.orderId, amount: 1000,
+    }), env);
+    expect(await repeated.json()).toEqual({ granted: true, extraUses: 10 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const chats = [];
+    for (let index = 0; index < 11; index += 1) chats.push(await worker.fetch(chat(), env));
+    expect(chats.every((response) => response.status === 200)).toBe(true);
+    expect((await worker.fetch(chat(), env)).status).toBe(429);
+  });
+
+  it('rejects forged, mismatched, repeated-per-day, and foreign-origin grants', async () => {
+    const { env, fetchMock } = setup();
+    expect((await worker.fetch(payment('order', { locale: 'ko' }, ''), env)).status).toBe(403);
+    const foreign = payment('order', { locale: 'ko' });
+    foreign.headers.set('Origin', 'https://attacker.example');
+    expect((await worker.fetch(foreign, env)).status).toBe(403);
+    expect((await worker.fetch(payment('confirm', {
+      locale: 'ko', paymentKey: 'test_payment_key_1234567890', orderId: 'IPPO_DEMO_forged123456789', amount: 1,
+    }), env)).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    const order = await (await worker.fetch(payment('order', { locale: 'ko' }), env)).json() as { orderId: string };
+    fetchMock.mockResolvedValueOnce(Response.json({
+      paymentKey: 'different', orderId: order.orderId, totalAmount: 1000, status: 'DONE',
+    }));
+    expect((await worker.fetch(payment('confirm', {
+      locale: 'ko', paymentKey: 'test_payment_key_1234567890', orderId: order.orderId, amount: 1000,
+    }), env)).status).toBe(400);
+  });
+
+  it('keeps the global quota in force after a personal demo grant', async () => {
+    const { env, fetchMock } = setup();
+    env.DAILY_IP_LIMIT = '1';
+    env.DAILY_GLOBAL_LIMIT = '2';
+    const order = await (await worker.fetch(payment('order', { locale: 'ko' }), env)).json() as { orderId: string };
+    const paymentKey = 'test_payment_key_global_12345';
+    fetchMock.mockResolvedValueOnce(Response.json({
+      paymentKey, orderId: order.orderId, totalAmount: 1000, status: 'DONE',
+    }));
+    expect((await worker.fetch(payment('confirm', {
+      locale: 'ko', paymentKey, orderId: order.orderId, amount: 1000,
+    }), env)).status).toBe(200);
+    expect((await worker.fetch(chat(), env)).status).toBe(200);
+    expect((await worker.fetch(chat(), env)).status).toBe(200);
+    expect((await worker.fetch(chat(), env)).status).toBe(429);
   });
 });

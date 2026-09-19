@@ -19,10 +19,12 @@ export default function PaymentDemo({
   locale,
   result,
   onClose,
+  onGranted,
 }: {
   locale: Locale;
   result: PaymentResult;
   onClose: () => void;
+  onGranted: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [widgets, setWidgets] = useState<TossPaymentsWidgets | null>(null);
@@ -31,6 +33,12 @@ export default function PaymentDemo({
   );
   const [requesting, setRequesting] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [orderId, setOrderId] = useState("");
+  const [loadError, setLoadError] = useState("");
+  const [confirmation, setConfirmation] = useState<
+    "confirming" | "granted" | "failed"
+  >(result === "success" ? "confirming" : "failed");
+  const confirmationStarted = useRef(false);
   const ko = locale === "ko";
 
   useEffect(() => {
@@ -44,14 +52,34 @@ export default function PaymentDemo({
     let agreement: WidgetAgreementWidget | undefined;
     setStatus("loading");
     setWidgets(null);
+    setLoadError("");
     document.querySelector("#ippo-payment-methods")?.replaceChildren();
     document.querySelector("#ippo-payment-agreement")?.replaceChildren();
 
     void (async () => {
       try {
-        const tossPayments = await loadTossPayments(TEST_CLIENT_KEY);
+        const [tossPayments, orderResponse] = await Promise.all([
+          loadTossPayments(TEST_CLIENT_KEY),
+          fetch("/api/demo-topup/order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ locale }),
+          }),
+        ]);
+        const order = (await orderResponse.json()) as {
+          orderId?: string;
+          amount?: number;
+          code?: string;
+        };
+        if (
+          !orderResponse.ok ||
+          typeof order.orderId !== "string" ||
+          order.amount !== DEMO_AMOUNT
+        ) {
+          throw Error(order.code || "payment_unavailable");
+        }
         const nextWidgets = tossPayments.widgets({ customerKey: ANONYMOUS });
-        await nextWidgets.setAmount({ currency: "KRW", value: DEMO_AMOUNT });
+        await nextWidgets.setAmount({ currency: "KRW", value: order.amount });
         [paymentMethods, agreement] = await Promise.all([
           nextWidgets.renderPaymentMethods({
             selector: "#ippo-payment-methods",
@@ -63,11 +91,15 @@ export default function PaymentDemo({
           }),
         ]);
         if (!disposed) {
+          setOrderId(order.orderId);
           setWidgets(nextWidgets);
           setStatus("ready");
         }
-      } catch {
-        if (!disposed) setStatus("error");
+      } catch (caught) {
+        if (!disposed) {
+          setLoadError(caught instanceof Error ? caught.message : "payment_unavailable");
+          setStatus("error");
+        }
       }
     })();
 
@@ -76,16 +108,54 @@ export default function PaymentDemo({
       void paymentMethods?.destroy().catch(() => undefined);
       void agreement?.destroy().catch(() => undefined);
     };
-  }, [attempt, result]);
+  }, [attempt, locale, result]);
+
+  useEffect(() => {
+    if (result !== "success" || confirmationStarted.current) return;
+    confirmationStarted.current = true;
+    const params = new URLSearchParams(location.search);
+    const paymentKey = params.get("paymentKey");
+    const returnedOrderId = params.get("orderId");
+    const amount = Number(params.get("amount"));
+    if (!paymentKey || !returnedOrderId || amount !== DEMO_AMOUNT) {
+      setConfirmation("failed");
+      return;
+    }
+    void (async () => {
+      try {
+        const response = await fetch("/api/demo-topup/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            locale,
+            paymentKey,
+            orderId: returnedOrderId,
+            amount,
+          }),
+        });
+        const value = (await response.json()) as {
+          granted?: boolean;
+          extraUses?: number;
+        };
+        if (!response.ok || value.granted !== true || value.extraUses !== 10) {
+          throw Error("payment_failed");
+        }
+        setConfirmation("granted");
+        onGranted();
+      } catch {
+        setConfirmation("failed");
+      }
+    })();
+  }, [locale, onGranted, result]);
 
   async function requestDemoPayment() {
-    if (!widgets || requesting) return;
+    if (!widgets || !orderId || requesting) return;
     setRequesting(true);
     try {
       const params = new URLSearchParams({ paymentDemo: "success" });
       const failParams = new URLSearchParams({ paymentDemo: "fail" });
       await widgets.requestPayment({
-        orderId: `IPPO_DEMO_${crypto.randomUUID().replaceAll("-", "")}`,
+        orderId,
         orderName: ko ? "잇포 추가 대화 10회 (데모)" : "いっぽ 追加10回（デモ）",
         successUrl: `${location.origin}${location.pathname}?${params}`,
         failUrl: `${location.origin}${location.pathname}?${failParams}`,
@@ -121,24 +191,44 @@ export default function PaymentDemo({
 
       {result ? (
         <section className="payment-demo-result" role="status">
-          {result === "success" ? <Check size={28} /> : <CreditCard size={28} />}
+          {result === "success" && confirmation === "confirming" ? (
+            <LoaderCircle className="verification-spinner" size={28} />
+          ) : confirmation === "granted" ? (
+            <Check size={28} />
+          ) : (
+            <CreditCard size={28} />
+          )}
           <h3>
-            {result === "success"
+            {result === "success" && confirmation === "confirming"
               ? ko
-                ? "테스트 결제 화면에서 돌아왔어요"
-                : "テスト決済画面から戻りました"
-              : ko
+                ? "테스트 결제를 확인하고 있어요"
+                : "テスト決済を確認しています"
+              : confirmation === "granted"
+                ? ko
+                  ? "오늘의 대화 10회가 추가됐어요"
+                  : "今日のトークが10回追加されました"
+                : ko
                 ? "테스트 결제가 완료되지 않았어요"
                 : "テスト決済は完了しませんでした"}
           </h3>
           <p>
-            {ko
-              ? "승인 서버를 연결하지 않은 데모라 실제 결제나 대화 횟수 추가는 발생하지 않아요."
-              : "承認サーバー未接続のデモのため、実際の決済や利用回数の追加は行われません。"}
+            {confirmation === "granted"
+              ? ko
+                ? "실제 금액은 결제되지 않았고, 이 네트워크에서 오늘 사용할 수 있는 AI 대화가 10회 늘어났어요."
+                : "実際の請求はなく、このネットワークで本日使えるAIトークが10回増えました。"
+              : confirmation === "confirming"
+                ? ko
+                  ? "결제 정보와 주문 금액을 서버에서 확인한 뒤 횟수를 추가합니다."
+                  : "決済情報と注文金額をサーバーで確認してから回数を追加します。"
+                : ko
+                  ? "결제 정보를 확인할 수 없어 대화 횟수가 추가되지 않았어요. 다시 시도해주세요."
+                  : "決済情報を確認できず、回数は追加されませんでした。もう一度お試しください。"}
           </p>
-          <button type="button" onClick={() => dialog.current?.close()}>
-            {ko ? "대화로 돌아가기" : "会話に戻る"}
-          </button>
+          {confirmation !== "confirming" && (
+            <button type="button" onClick={() => dialog.current?.close()}>
+              {ko ? "대화로 돌아가기" : "会話に戻る"}
+            </button>
+          )}
         </section>
       ) : (
         <div className="payment-demo-body">
@@ -156,8 +246,8 @@ export default function PaymentDemo({
             <ShieldCheck size={16} />
             <span>
               {ko
-                ? "토스페이먼츠 공식 테스트 키를 사용합니다. 실제로 결제되거나 이용권이 지급되지 않아요."
-                : "Toss Paymentsの公式テストキーを使用します。実際の請求や利用回数の追加はありません。"}
+                ? "공식 테스트 결제라 실제 금액은 차감되지 않아요. 성공하면 오늘의 AI 대화 10회가 추가돼요."
+                : "公式テスト決済のため実際の請求はありません。成功すると本日のAIトークが10回追加されます。"}
             </span>
           </p>
 
@@ -171,8 +261,12 @@ export default function PaymentDemo({
             <div className="payment-demo-load-error" role="alert">
               <p>
                 {ko
-                  ? "결제 데모를 불러오지 못했어요. 연결을 확인해주세요."
-                  : "決済デモを読み込めませんでした。接続をご確認ください。"}
+                  ? loadError === "topup_already_used"
+                    ? "오늘 받을 수 있는 데모 추가 대화 10회를 이미 받았어요."
+                    : "결제 데모를 불러오지 못했어요. 연결을 확인해주세요."
+                  : loadError === "topup_already_used"
+                    ? "本日のデモ追加10回はすでに受け取り済みです。"
+                    : "決済デモを読み込めませんでした。接続をご確認ください。"}
               </p>
               <button type="button" onClick={() => setAttempt((value) => value + 1)}>
                 {ko ? "다시 불러오기" : "もう一度読み込む"}
@@ -197,8 +291,8 @@ export default function PaymentDemo({
           </button>
           <p className="payment-demo-footnote">
             {ko
-              ? "실제 판매를 시작하려면 가격 정책, 토스페이먼츠 계약, 서버 승인 및 이용권 지급 검증이 별도로 필요해요."
-              : "実販売には、価格設定・加盟店契約・サーバー承認・利用回数付与の検証が別途必要です。"}
+              ? "데모 추가는 같은 IP에서 하루 한 번만 받을 수 있고, 서비스 전체 일일 한도가 먼저 소진되면 이용이 제한될 수 있어요."
+              : "デモ追加は同じIPで1日1回までです。サービス全体の1日上限が先に終了すると利用できない場合があります。"}
           </p>
         </div>
       )}

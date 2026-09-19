@@ -86,6 +86,11 @@ export default function App() {
     setToken("");
     setVerification((v) => v + 1);
   }, []);
+  const paymentGranted = useCallback(() => {
+    setError("");
+    setErrorCode("");
+    setRetry(null);
+  }, []);
   const clear = useCallback(() => {
     cancel();
     setMessages([]);
@@ -892,6 +897,7 @@ export default function App() {
                 : null
           }
           onClose={closePayment}
+          onGranted={paymentGranted}
         />
       )}
     </div>
