@@ -43,6 +43,36 @@ try {
       /Pretendard Variable/,
       "Korean uses Pretendard",
     );
+    if (width === 390) {
+      await page.getByRole("textbox").focus();
+      await page.setViewportSize({ width: 390, height: 500 });
+      await page.waitForFunction(
+        () => document.documentElement.dataset.keyboardOpen === "true",
+      );
+      assert.equal(
+        await page.locator(".composer-caption").evaluate(
+          (element) => getComputedStyle(element).display,
+        ),
+        "none",
+        "secondary composer copy is hidden while the keyboard is open",
+      );
+      assert.equal(
+        await page.locator(".welcome-symbol").evaluate(
+          (element) => getComputedStyle(element).display,
+        ),
+        "none",
+        "decorative welcome content yields space to the conversation",
+      );
+      const compactComposer = await page
+        .locator(".conversation-composer")
+        .boundingBox();
+      assert(compactComposer.y + compactComposer.height <= 500);
+      await page.getByRole("textbox").blur();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForFunction(
+        () => !document.documentElement.dataset.keyboardOpen,
+      );
+    }
     await page.screenshot({
       path: `artifacts/${width === 390 ? "mobile" : "desktop"}-ko.png`,
     });

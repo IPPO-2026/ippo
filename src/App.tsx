@@ -172,24 +172,50 @@ export default function App() {
   }, [draft]);
   useEffect(() => {
     const vv = window.visualViewport;
+    let baselineHeight = vv?.height ?? innerHeight;
+    let keyboardWasOpen = false;
     const resize = () => {
+      const visibleHeight = vv?.height ?? innerHeight;
+      const inputFocused = document.activeElement === input.current;
+      if (!inputFocused) baselineHeight = visibleHeight;
+      const keyboardOpen =
+        inputFocused && baselineHeight - visibleHeight > 120;
+
       document.documentElement.style.setProperty(
         "--app-height",
-        `${vv?.height ?? innerHeight}px`,
+        `${visibleHeight}px`,
       );
       document.documentElement.style.setProperty(
         "--app-top",
         `${vv?.offsetTop ?? 0}px`,
       );
+      if (keyboardOpen) {
+        document.documentElement.dataset.keyboardOpen = "true";
+        if (!keyboardWasOpen) {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() =>
+              end.current?.scrollIntoView({ block: "nearest", behavior: "instant" }),
+            ),
+          );
+        }
+      } else {
+        delete document.documentElement.dataset.keyboardOpen;
+      }
+      keyboardWasOpen = keyboardOpen;
     };
     resize();
     vv?.addEventListener("resize", resize);
     vv?.addEventListener("scroll", resize);
     window.addEventListener("resize", resize);
+    document.addEventListener("focusin", resize);
+    document.addEventListener("focusout", resize);
     return () => {
       vv?.removeEventListener("resize", resize);
       vv?.removeEventListener("scroll", resize);
       window.removeEventListener("resize", resize);
+      document.removeEventListener("focusin", resize);
+      document.removeEventListener("focusout", resize);
+      delete document.documentElement.dataset.keyboardOpen;
     };
   }, []);
   function changeLocale(value: Locale) {

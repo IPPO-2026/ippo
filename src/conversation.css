@@ -674,3 +674,52 @@ svg {
 .verification-retry { display: inline-flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 10px; border-radius: 12px; color: #08755e; font-size: 12px; font-weight: 600; }
 .verification-widget { margin-top: 4px; }
 .verification-spinner { animation: spin 1.4s linear infinite; }
+
+@media (max-width: 600px) {
+  html[data-keyboard-open="true"] .app-header {
+    height: calc(52px + env(safe-area-inset-top, 0px));
+    padding-inline: 12px;
+    gap: 9px;
+  }
+  html[data-keyboard-open="true"] .app-brand img {
+    width: 56px;
+    height: 28px;
+    border-radius: 7px;
+  }
+  html[data-keyboard-open="true"] .header-title span,
+  html[data-keyboard-open="true"] .composer-caption,
+  html[data-keyboard-open="true"] .active-step,
+  html[data-keyboard-open="true"] .verification:has(.verification-status.ready) {
+    display: none;
+  }
+  html[data-keyboard-open="true"] .conversation-scroll {
+    padding-inline: 16px;
+    padding-bottom: 8px;
+    scrollbar-width: none;
+  }
+  html[data-keyboard-open="true"] .conversation-scroll::-webkit-scrollbar {
+    display: none;
+  }
+  html[data-keyboard-open="true"] .conversation-footer {
+    max-height: 44%;
+    padding: 6px 10px;
+  }
+  html[data-keyboard-open="true"] .conversation-composer textarea {
+    max-height: 72px;
+  }
+  html[data-keyboard-open="true"] .conversation-welcome {
+    padding: 22px 0 10px;
+  }
+  html[data-keyboard-open="true"] .welcome-symbol,
+  html[data-keyboard-open="true"] .welcome-overline,
+  html[data-keyboard-open="true"] .conversation-welcome p,
+  html[data-keyboard-open="true"] .conversation-prompts {
+    display: none;
+  }
+  html[data-keyboard-open="true"] .conversation-welcome h1 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.45;
+    letter-spacing: -0.5px;
+  }
+}
