@@ -66,6 +66,7 @@ Cloudflare **Workers Free** 플랜과 기본 `workers.dev` 주소를 사용합�
 | 문서 | 내용 |
 |---|---|
 | [제품 정의](docs/product.md) | 이름·대상·한일 UX·원안 대비 변경·수용 기준 |
+| [브랜드 가이드](docs/brand.md) | 제공 로고 원본·민트 색상·타이포그래피·사용 규칙 |
 | [아키텍처](docs/architecture.md) | 데이터 흐름·API·현재/향후 데이터 설계 |
 | [무료 배포 가이드](docs/deployment.md) | 무료 한도·설정 순서·실제 AI 연결·운영 |
 | [개발 로드맵](docs/roadmap.md) | 단계별 범위와 완료 조건 |

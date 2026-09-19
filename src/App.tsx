@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowRight, ArrowUp, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, ExternalLink, Globe2, Heart, Leaf, LoaderCircle, LockKeyhole, MessageCircle, Plus, RefreshCw, Settings2, ShieldCheck, Sparkles, Sprout, Sun, Trash2, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, ArrowUp, BatteryLow, BatteryMedium, BatteryFull, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, ExternalLink, Globe2, Heart, Leaf, LoaderCircle, LockKeyhole, MessageCircle, Plus, RefreshCw, Settings2, ShieldCheck, Sparkles, Sprout, Sun, Trash2, X, Zap } from 'lucide-react';
 import type { AppConfig, ChatResponse, Locale, Region } from './shared';
 import { MAX_CONTEXT_CHARACTERS, MAX_MESSAGE_LENGTH } from './shared';
 import { copy, getDemoReply, missions } from './copy';
-import { IppoMark, StepScene } from './illustrations';
+import BrandMark from './BrandMark';
 import { contextMessages, freshStep, loadHistory, loadPreferences, loadStep, localDate, STORAGE } from './local-state';
 import type { DisplayMessage, Preferences, StepState } from './local-state';
 import Turnstile from './Turnstile';
@@ -19,7 +19,7 @@ function validConfig(value: unknown): value is AppConfig {
 }
 
 function Brand({ locale }: { locale: Locale }) {
-  return <div className="brand"><span className="wordmark">ippo<span className="brand-period">.</span></span><span className="brand-language">{copy[locale].brand}</span></div>;
+  return <div className="brand"><img className="brand-wordmark" src="/brand/ippo-wordmark.svg" width="1200" height="600" alt={`IPPO · ${copy[locale].brand}`} /></div>;
 }
 
 export default function App() {
@@ -110,7 +110,7 @@ export default function App() {
   useEffect(() => () => { request.current?.abort(); session.current += 1; }, []);
   useEffect(() => {
     document.documentElement.lang = locale;
-    document.title = `ippo — ${t.tagline}`;
+    document.title = `IPPO — ${t.tagline}`;
     try { localStorage.setItem(STORAGE.preferences, JSON.stringify(preferences)); } catch { setStorageError(true); }
   }, [preferences, locale, t.tagline]);
   useEffect(() => {
@@ -252,11 +252,11 @@ export default function App() {
       <div className="energy-section">
         <h3>{t.energyQuestion}</h3>
         <div className="energy-buttons" role="group" aria-label={t.energyQuestion}>
-          {[1, 2, 3, 4, 5].map(value => <button key={value} className={`energy-button ${step.energy === value ? 'selected' : ''}`} aria-pressed={step.energy === value} aria-label={`${t.energyLabel} ${value}: ${t.energyNames[value - 1]}`} onClick={() => setStep({ date: localDate(region), energy: value, mission: value - 1, status: 'suggested' })}><span>{value === 1 ? '◡' : value === 2 ? '⌣' : value === 3 ? '–' : value === 4 ? '⌒' : '✦'}</span><small>{value}</small></button>)}
+          {[1, 2, 3, 4, 5].map(value => { const Icon = [BatteryLow, BatteryLow, BatteryMedium, BatteryFull, Zap][value - 1]; return <button key={value} className={`energy-button ${step.energy === value ? 'selected' : ''}`} aria-pressed={step.energy === value} aria-label={`${t.energyLabel} ${value}: ${t.energyNames[value - 1]}`} onClick={() => setStep({ date: localDate(region), energy: value, mission: value - 1, status: 'suggested' })}><span aria-hidden="true"><Icon size={18} strokeWidth={1.6} /></span><small>{value}</small></button>; })}
         </div>
         <div className="energy-labels"><span>{t.energyLow}</span><span>{t.energyHigh}</span></div>
       </div>
-      <StepScene />
+      <div className="mission-divider" />
       <div className="mission-content">
         <div className="mission-overline">{finished ? <CheckCheck size={15} /> : <Leaf size={14} />}<span>{finished ? t.completed : deferred ? t.deferred : step.status === 'active' ? t.active : t.suggested}</span></div>
         <h3>{deferred ? t.deferred : mission.title}</h3>
@@ -278,7 +278,7 @@ export default function App() {
       <div><Brand locale={locale} /><p className="brand-tagline">{t.tagline}</p></div>
       <nav className="desktop-nav" aria-label={locale === 'ja' ? 'メインメニュー' : '메인 메뉴'}>{nav.map(item => <button key={item.id} className={`nav-item ${tab === item.id ? 'active' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><item.icon size={20} strokeWidth={1.7} /><span>{item.label}</span>{tab === item.id && <span className="nav-active-dot" />}</button>)}</nav>
       <button className="new-chat" onClick={() => { if (messages.length) setClearConfirmation('chat'); else { resetConversation(); setTab('chat'); textarea.current?.focus(); } }}><Plus size={17} />{t.newConversation}</button>
-      <div className="sidebar-bottom"><IppoMark className="sidebar-mascot" /><p>{t.sidebarNote}</p><div className="sidebar-divider" /><span className="sidebar-footer">{t.sidebarFooter}</span><span className="project-label">IPPO PROJECT · 2026</span></div>
+      <div className="sidebar-bottom"><p>{t.sidebarNote}</p><div className="sidebar-divider" /><span className="sidebar-footer">{t.sidebarFooter}</span><span className="project-label">IPPO PROJECT · 2026</span></div>
     </aside>
 
     <div className="workspace">
@@ -293,18 +293,16 @@ export default function App() {
           {tab === 'chat' && <>
             <div className="chat-scroll">
               {messages.length === 0 ? <div className="welcome">
-                <div className="welcome-overline"><span className="sun-icon"><Sun size={21} strokeWidth={1.5} /></span><span>{t.chapter}</span></div>
+                <div className="welcome-identity"><BrandMark className="hero-symbol" decorative={false} label={t.mascot} /><span className="welcome-kicker">{t.greeting}</span></div>
                 <h1>{t.heading}</h1><p className="welcome-intro">{t.intro}</p>
-                <div className="welcome-character"><span className="character-halo" /><IppoMark className="hero-mascot" decorative={false} label={t.mascot} /><span className="tiny-spark spark-one">✦</span><span className="tiny-spark spark-two">✳</span></div>
-                <div className="welcome-greeting"><span className="tiny-dot" />{t.greeting}<span className="greeting-subtitle">{t.invitation}</span></div>
                 <div className="starter-prompts">{t.prompts.map((prompt, index) => { const Icon = [Leaf, Sparkles, Sun][index]; return <button key={prompt} onClick={() => { setDraft(prompt); textarea.current?.focus(); }}><Icon size={18} strokeWidth={1.5} /><span><small>{t.promptHints[index]}</small><strong>{prompt}</strong></span><ChevronRight size={15} /></button>; })}</div>
               </div> : <div className="message-list" role="log" aria-label={t.chat} aria-live="polite" aria-relevant="additions text">
                 <div className="conversation-date">{new Intl.DateTimeFormat(locale === 'ja' ? 'ja-JP' : 'ko-KR', { month: 'long', day: 'numeric', timeZone: region === 'JP' ? 'Asia/Tokyo' : 'Asia/Seoul' }).format(new Date())}<span>·</span>{t.today}</div>
                 {messages.map(message => <div key={message.id} className={`message-row ${message.role}`}>
-                  {message.role === 'assistant' && <div className="avatar"><IppoMark /></div>}
+                  {message.role === 'assistant' && <div className="avatar"><BrandMark className="chat-symbol" /></div>}
                   <div className="message-group"><div className="message-label">{message.role === 'user' ? t.you : t.assistant}{message.role === 'assistant' && <span>{message.mode === 'demo' ? t.responseDemo : t.responseAI}</span>}</div><div className="message-bubble">{message.content}</div></div>
                 </div>)}
-                {loading && <div className="message-row assistant"><div className="avatar"><IppoMark /></div><div className="loading-bubble" role="status"><LoaderCircle className="spinner" size={17} />{t.sending}</div></div>}
+                {loading && <div className="message-row assistant"><div className="avatar"><BrandMark className="chat-symbol" /></div><div className="loading-bubble" role="status"><LoaderCircle className="spinner" size={17} />{t.sending}</div></div>}
               </div>}
               {error && <div className="chat-error" role="alert"><CircleHelp size={18} /><div><p>{error}</p>{retryMessages && <button className="text-button" disabled={loading || (isLive && (!consent || !token))} onClick={() => void sendMessage('', retryMessages)}><RefreshCw size={14} />{t.retry}</button>}</div></div>}
               <div ref={messagesEnd} />

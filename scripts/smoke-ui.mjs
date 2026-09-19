@@ -11,7 +11,7 @@ page.on('pageerror', e => errors.push(e.message));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto(base);
 await page.getByRole('heading', { name: '今日は、どんな一日？' }).waitFor();
-await page.screenshot({path:'artifacts/desktop-ja.png',fullPage:true});
+await page.screenshot({path:'artifacts/desktop-ja.png',fullPage:true,animations:'disabled'});
 assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 await page.getByRole('combobox').selectOption('ko');
 await page.getByRole('textbox').fill('조금 지친 것 같아요');
@@ -47,15 +47,15 @@ assert.equal(await page.evaluate(()=>localStorage.getItem('ippo.history.v1')),nu
 assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('ippo.step.v1')).status),'suggested');
 await page.locator('.desktop-nav').getByRole('button',{name:'이야기',exact:true}).click();
 if (await page.locator('.toast button').count()) await page.locator('.toast button').click();
-await page.screenshot({path:'artifacts/desktop-ko.png',fullPage:true});
+await page.screenshot({path:'artifacts/desktop-ko.png',fullPage:true,animations:'disabled'});
 await page.setViewportSize({width:390,height:844});
-await page.screenshot({path:'artifacts/mobile-ko.png',fullPage:true});
+await page.screenshot({path:'artifacts/mobile-ko.png',fullPage:true,animations:'disabled'});
 for (const name of ['작은 한 걸음','설정','이야기']) {
   await page.locator('.mobile-nav').getByRole('button',{name,exact:true}).click();
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),true,`mobile overflow ${name}`);
 }
 await page.getByRole('combobox').selectOption('ja');
-await page.screenshot({path:'artifacts/mobile-ja.png',fullPage:true});
+await page.screenshot({path:'artifacts/mobile-ja.png',fullPage:true,animations:'disabled'});
 assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth),true);
 assert.deepEqual(errors,[]);
 console.log('PASS: ja/ko 1440/390 layouts, demo chat, default privacy, opt-in persistence, mission completion, region links, export and delete; no console/page errors.');

@@ -45,7 +45,7 @@ export const copy = {
     supportJP: 'まもろうよ こころ · 厚生労働省', supportKR: '自殺予防相談電話 109 · 韓国', externalLink: '新しいタブで開く',
     newConversation: '新しいおはなし', clearChatQuestion: '現在の会話と保存された会話を消去しますか？', clearChatConfirm: '新しくはじめる',
     emptyExport: 'まだ書き出せる会話がありません。', exportTitle: 'いっぽの会話', exportNotice: 'AI・デモの応答は医療的な助言ではありません。',
-    mascot: '小さな一歩を踏み出す、いっぽのキャラクター', dateSuffix: 'の一歩', connectRetry: '再接続しています…',
+    mascot: 'いっぽの公式ロゴ', dateSuffix: 'の一歩', connectRetry: '再接続しています…',
   },
   ko: {
     brand: '잇포', tagline: '오늘의, 작은 한 걸음.', chat: '이야기', steps: '작은 한 걸음', settings: '설정',
@@ -91,7 +91,7 @@ export const copy = {
     supportJP: '마모로요 코코로 · 일본 후생노동성', supportKR: '자살예방상담전화 109 · 한국', externalLink: '새 탭에서 열기',
     newConversation: '새로운 이야기', clearChatQuestion: '현재 대화와 저장된 대화를 지울까요?', clearChatConfirm: '새로 시작하기',
     emptyExport: '아직 내보낼 대화가 없어요.', exportTitle: '잇포의 대화', exportNotice: 'AI·데모의 답변은 의료적 조언이 아니에요.',
-    mascot: '작은 한 걸음을 내딛는 잇포 캐릭터', dateSuffix: '의 한 걸음', connectRetry: '다시 연결하고 있어요…',
+    mascot: '잇포 공식 로고', dateSuffix: '의 한 걸음', connectRetry: '다시 연결하고 있어요…',
   },
 } satisfies Record<Locale, Record<string, string | string[]>>;
 
