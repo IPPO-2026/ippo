@@ -336,7 +336,7 @@ export default function App() {
       ? "https://www.mhlw.go.jp/mamorouyokokoro/"
       : "https://www.129.go.kr/109";
   return (
-    <div className="conversation-app">
+    <div className="conversation-app" lang={locale}>
       <header className="app-header">
         <a className="app-brand" href="#chat" aria-label="IPPO">
           <img

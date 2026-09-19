@@ -20,6 +20,13 @@ try {
     page.on("dialog", (d) => d.accept());
     await page.goto(base);
     await page.getByRole("heading", { name: "今日は、どんな一日？" }).waitFor();
+    assert.doesNotMatch(
+      await page.locator(".conversation-app").evaluate((element) =>
+        getComputedStyle(element).fontFamily,
+      ),
+      /Pretendard/,
+      "Japanese keeps its existing font stack",
+    );
     await page.evaluate(() =>
       Promise.all([...document.images].map((i) => i.decode())),
     );
@@ -29,6 +36,13 @@ try {
     await page.getByRole("button", { name: "メニュー", exact: true }).click();
     await page.getByRole("combobox").first().selectOption("ko");
     await page.getByRole("button", { name: "닫기", exact: true }).click();
+    assert.match(
+      await page.locator(".conversation-app").evaluate((element) =>
+        getComputedStyle(element).fontFamily,
+      ),
+      /Pretendard Variable/,
+      "Korean uses Pretendard",
+    );
     await page.screenshot({
       path: `artifacts/${width === 390 ? "mobile" : "desktop"}-ko.png`,
     });
