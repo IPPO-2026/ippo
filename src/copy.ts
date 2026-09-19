@@ -48,7 +48,7 @@ export const copy = {
     mascot: 'いっぽの公式ロゴ', dateSuffix: 'の一歩', connectRetry: '再接続しています…',
   },
   ko: {
-    brand: '잇포', tagline: '오늘의, 작은 한 걸음.', chat: '이야기', steps: '작은 한 걸음', settings: '설정',
+    brand: '잇포', tagline: '오늘의, 작은 한 걸음.', chat: '한 걸음', steps: '작은 한 걸음', settings: '설정',
     sidebarNote: '서두르지 않아도 괜찮아요.\n당신의 속도로.', sidebarFooter: '한국과 일본을, 하나의 발걸음으로.',
     chapter: 'A LITTLE SPACE FOR YOU', heading: '오늘은 어떤 하루였나요?', intro: '마음을 꼭 잘 설명하지 않아도 괜찮아요.\n지금의 마음부터, 조금씩 이야기해요.',
     greeting: '안녕하세요, 잇포예요.', invitation: '이야기하고 싶은 것부터 시작해요.',
