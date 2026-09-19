@@ -49,3 +49,20 @@ GitHub CI는 타입 검사·76개 테스트·빌드·PWA 브라우저 검사·�
 - Cloudflare 정적 자산의 `/index.html` 리디렉션을 피하도록 `/`를 미리 저장합니다. 로컬 Wrangler 환경의 새로고침도 통과했습니다.
 - 아이콘 192/512px와 Apple 180px는 제공받은 원본 심벌을 비율 유지하여 축소했습니다.
 - Cloudflare 인증 만료 확인. 실제 AI 연결·공개 HTTPS 배포·실기기 설치·모바일 키보드 동작은 미검증입니다.
+
+## 대화 중심 UI와 공개 배포 (2026-09-19)
+
+- 81개 단위/API 테스트 통과. 미션 식별자 허용 목록, 일반 대화, 잘못된/복수 제안, 저장 상태 검증 포함.
+- 로컬 390×844·1440×1000, 한·일 단일 대화 화면, 문맥 미션 시작/완료/미루기, 기본 비저장, 선택 저장 후 새로고침, 기록 삭제 통과.
+- 실제 서비스 워커 업데이트/오프라인 새로고침/저장 미션 완료/재연결 통과.
+- 모의 live 계약: 동의, 429, 잘못된 demo 응답 거부, 미션 카드 처리, 제한된 문맥, 삭제 시 늦은 답변 차단 통과.
+- Cloudflare Workers Free / Current plan을 로그인된 대시보드에서 확인. APAC D1 생성·마이그레이션, managed Turnstile, 서버 비밀키 등록 완료. 비밀값은 Git/로그에 포함하지 않음.
+- 공개 HTTPS: https://ippo.hyscodebase.workers.dev . `/api/health` live 및 서비스 워커 Cache-Control 확인.
+- 공개 앱에서 합성 한국어 문장 → 자동 Turnstile 검증 → 실제 Qwen3 응답 → tidy 미션 → 시작/완료 확인. 이 검증은 일반 사용자에 대한 임상·안전성·언어 품질 평가를 대신하지 않음.
+- 실제 휴대폰 홈 화면 설치·키보드 동작은 미검증.
+
+- 브라우저가 `navigator.onLine=true`를 유지하는 네트워크 단절도 발견하여 `/api/config` 실패 시 전송을 차단하고 재연결 버튼을 표시하도록 보완했습니다.
+
+- 공개 사이트 390/1440px 한·일 화면과 로고, 입력창 위치, 프로덕션 서비스 워커를 점검했습니다. Chromium 일반 프로필에서 PWA 설치 적합성 오류가 없음을 확인했습니다.
+- 최종 배포 버전: `78a54d55-65db-4d76-ad08-c6780bacf08e`. 공개 HTTPS에서도 오프라인 재실행·전송 차단 및 온라인 콘솔 오류 없음 확인.
+- 공개 화면 재현: `IPPO_TEST_URL=https://ippo.hyscodebase.workers.dev PLAYWRIGHT_CHROME_CHANNEL=chrome node scripts/smoke-public.mjs` (이 스크립트는 AI 대화를 전송하지 않음).

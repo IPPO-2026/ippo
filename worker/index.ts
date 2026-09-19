@@ -1,6 +1,6 @@
 import { MAX_CONTEXT_CHARACTERS, MAX_MESSAGE_LENGTH } from '../src/shared';
 import type { Locale } from '../src/shared';
-import { demoReply, extractReply, parseChatRequest, systemPrompt } from './policy';
+import { demoReply, extractMissionReply, parseChatRequest, systemPrompt } from './policy';
 import { dailyLimit, ipBucket, reserve } from './budget';
 
 export interface Env {
@@ -90,8 +90,8 @@ export default {
       const reply = await env.AI.run('@cf/qwen/qwen3-30b-a3b-fp8', {
         messages: [{ role: 'system', content: systemPrompt(body) }, ...body.messages], max_tokens: 384, temperature: 0.6,
       });
-      const message = extractReply(reply);
-      return message ? json({ mode: 'live', message }) : fail('provider_unavailable', 503, locale);
+      const answer = extractMissionReply(reply);
+      return answer ? json({ mode: 'live', ...answer }) : fail('provider_unavailable', 503, locale);
     } catch {
       // Never log prompts, provider error payloads, IP addresses or tokens.
       // Quota/db/provider failures fail closed; never switch to an unbounded provider.

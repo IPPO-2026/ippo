@@ -1,361 +1,779 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ArrowDownToLine, ArrowRight, ArrowUp, BatteryLow, BatteryMedium, BatteryFull, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, ExternalLink, Globe2, Heart, Leaf, LoaderCircle, LockKeyhole, MessageCircle, Plus, RefreshCw, Settings2, ShieldCheck, Sparkles, Sprout, Sun, Trash2, X, Zap } from 'lucide-react';
-import type { AppConfig, ChatResponse, Locale, Region } from './shared';
-import { MAX_CONTEXT_CHARACTERS, MAX_MESSAGE_LENGTH } from './shared';
-import { copy, getDemoReply, missions } from './copy';
-import BrandMark from './BrandMark';
-import { contextMessages, freshStep, loadHistory, loadPreferences, loadStep, localDate, STORAGE } from './local-state';
-import type { DisplayMessage, Preferences, StepState } from './local-state';
-import Turnstile from './Turnstile';
-import { usePwa } from './usePwa';
-import { pwaCopy } from './pwa-copy';
-import './pwa.css';
-
-type Tab = 'chat' | 'steps' | 'settings';
-const DEMO_CONFIG: AppConfig = { mode: 'demo', turnstileSiteKey: null, maxMessageLength: MAX_MESSAGE_LENGTH, maxContextCharacters: MAX_CONTEXT_CHARACTERS };
-const initialPreferences = loadPreferences();
-
-function validConfig(value: unknown): value is AppConfig {
-  if (!value || typeof value !== 'object') return false;
-  const candidate = value as AppConfig;
-  return ['demo', 'live'].includes(candidate.mode) && (candidate.turnstileSiteKey === null || typeof candidate.turnstileSiteKey === 'string') && candidate.maxMessageLength === MAX_MESSAGE_LENGTH && candidate.maxContextCharacters === MAX_CONTEXT_CHARACTERS;
-}
-
-function Brand({ locale }: { locale: Locale }) {
-  return <div className="brand"><img className="brand-wordmark" src="/brand/ippo-wordmark.svg" width="1200" height="600" alt={`IPPO · ${copy[locale].brand}`} /></div>;
-}
-
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ArrowUp,
+  Check,
+  ChevronDown,
+  Clock3,
+  MoreHorizontal,
+  Plus,
+  Sprout,
+  X,
+  LoaderCircle,
+} from "lucide-react";
+import type { AppConfig, ChatResponse, Locale, Region } from "./shared";
+import { MAX_CONTEXT_CHARACTERS, MAX_MESSAGE_LENGTH } from "./shared";
+import { copy, getDemoReply } from "./copy";
+import BrandMark from "./BrandMark";
+import {
+  contextMessages,
+  loadHistory,
+  loadPreferences,
+  STORAGE,
+} from "./local-state";
+import type { DisplayMessage } from "./local-state";
+import {
+  demoMission,
+  isMissionId,
+  missionContent,
+  type MissionState,
+} from "./chat-missions";
+import Turnstile from "./Turnstile";
+import { usePwa } from "./usePwa";
+import { pwaCopy } from "./pwa-copy";
+import "./conversation.css";
+const initial = loadPreferences();
+const demoConfig: AppConfig = {
+  mode: "demo",
+  turnstileSiteKey: null,
+  maxMessageLength: MAX_MESSAGE_LENGTH,
+  maxContextCharacters: MAX_CONTEXT_CHARACTERS,
+};
 export default function App() {
-  const [preferences, setPreferences] = useState<Preferences>(initialPreferences);
+  const [preferences, setPreferences] = useState(initial);
   const { locale, region, saveHistory } = preferences;
-  const t = copy[locale];
-  const readTab = (): Tab => location.hash === '#steps' ? 'steps' : location.hash === '#settings' ? 'settings' : 'chat';
-  const [tab, storeTab] = useState<Tab>(readTab);
-  const setTab = (next: Tab) => { location.hash = next; storeTab(next); };
-  const pwa = usePwa();
-  const pt = pwaCopy[locale];
-  useEffect(() => { const change = () => storeTab(readTab()); window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change); }, []);
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    const resize = () => {
-      document.documentElement.style.setProperty('--app-height', `${viewport?.height ?? window.innerHeight}px`);
-      document.documentElement.style.setProperty('--app-top', `${viewport?.offsetTop ?? 0}px`);
-      document.documentElement.classList.toggle('keyboard-open', !!viewport && window.innerHeight - viewport.height > 150 && document.activeElement?.tagName === 'TEXTAREA');
-    };
-    resize(); viewport?.addEventListener('resize', resize); viewport?.addEventListener('scroll', resize); window.addEventListener('resize', resize); document.addEventListener('focusout', resize);
-    return () => { viewport?.removeEventListener('resize', resize); viewport?.removeEventListener('scroll', resize); window.removeEventListener('resize', resize); document.removeEventListener('focusout', resize); };
-  }, []);
-  const [messages, setMessages] = useState<DisplayMessage[]>(() => loadHistory(initialPreferences));
-  const [step, setStep] = useState<StepState>(() => loadStep(initialPreferences.region));
+  const t = copy[locale],
+    pt = pwaCopy[locale];
+  const ko = locale === "ko";
+  const [messages, setMessages] = useState<DisplayMessage[]>(() =>
+    loadHistory(initial),
+  );
+  const [draft, setDraft] = useState("");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [configError, setConfigError] = useState(false);
-  const [configLoading, setConfigLoading] = useState(true);
-  const [draft, setDraft] = useState('');
-  const [consent, setConsent] = useState(false);
-  const [token, setToken] = useState('');
-  const [verificationKey, setVerificationKey] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [retryMessages, setRetryMessages] = useState<DisplayMessage[] | null>(null);
-  const [notice, setNotice] = useState('');
-  const [clearConfirmation, setClearConfirmation] = useState<'all' | 'chat' | null>(null);
+  const [error, setError] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [token, setToken] = useState("");
+  const [verification, setVerification] = useState(0);
   const [storageError, setStorageError] = useState(false);
-  const textarea = useRef<HTMLTextAreaElement>(null);
-  const messagesEnd = useRef<HTMLDivElement>(null);
-  const session = useRef(0);
+  const [retry, setRetry] = useState<DisplayMessage[] | null>(null);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const end = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDialogElement>(null);
   const request = useRef<AbortController | null>(null);
+  const session = useRef(0),
+    busy = useRef(false),
+    composing = useRef(false);
   const configRequest = useRef<AbortController | null>(null);
-  const lastMode = useRef<AppConfig['mode'] | null>(null);
-  const composing = useRef(false);
-  const busy = useRef(false);
-  const dialog = useRef<HTMLDivElement>(null);
-  const isLive = config?.mode === 'live';
-  const nav = [{ id: 'chat' as const, icon: MessageCircle, label: t.chat }, { id: 'steps' as const, icon: Sprout, label: t.steps }, { id: 'settings' as const, icon: Settings2, label: t.settings }];
-  const supportUrl = region === 'JP' ? 'https://www.mhlw.go.jp/mamorouyokokoro/' : 'https://www.129.go.kr/109';
-  const supportLabel = region === 'JP' ? t.supportJP : t.supportKR;
-
-  const cancelRequest = useCallback(() => {
-    session.current += 1;
+  const mode = useRef<AppConfig["mode"] | null>(null);
+  const pwa = usePwa();
+  const isLive = config?.mode === "live";
+  const active = messages.find((m) => m.mission?.status === "active");
+  const cancel = useCallback(() => {
+    session.current++;
     request.current?.abort();
-    request.current = null;
     busy.current = false;
     setLoading(false);
-    setToken('');
-    setVerificationKey(value => value + 1);
+    setToken("");
+    setVerification((v) => v + 1);
   }, []);
-
-  const resetConversation = useCallback(() => {
-    cancelRequest();
+  const clear = useCallback(() => {
+    cancel();
     setMessages([]);
-    setDraft('');
-    setError('');
-    setRetryMessages(null);
+    setDraft("");
     setConsent(false);
-    setClearConfirmation(null);
-    try { localStorage.removeItem(STORAGE.history); } catch { setStorageError(true); }
-  }, [cancelRequest]);
-
+    setError("");
+    setRetry(null);
+    try {
+      localStorage.removeItem(STORAGE.history);
+    } catch {
+      setStorageError(true);
+    }
+  }, [cancel]);
   const loadConfig = useCallback(async () => {
     configRequest.current?.abort();
     const controller = new AbortController();
     configRequest.current = controller;
-    setConfigLoading(true);
-    const timeout = window.setTimeout(() => controller.abort('timeout'), 8000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
     try {
-      const response = await fetch('/api/config', { signal: controller.signal, cache: 'no-store' });
-      if (!response.ok) throw new Error('Config unavailable');
-      const result: unknown = await response.json();
-      if (!validConfig(result)) throw new Error('Unexpected configuration');
-      if (controller !== configRequest.current) return;
-      if (lastMode.current && lastMode.current !== result.mode) resetConversation();
-      lastMode.current = result.mode;
-      setConfig(result);
+      const response = await fetch("/api/config", {
+        cache: "no-store",
+        signal: controller.signal,
+      });
+      const value = (await response.json()) as AppConfig;
+      if (
+        !response.ok ||
+        !["live", "demo"].includes(value.mode) ||
+        value.maxMessageLength !== MAX_MESSAGE_LENGTH ||
+        value.maxContextCharacters !== MAX_CONTEXT_CHARACTERS ||
+        !(
+          value.turnstileSiteKey === null ||
+          typeof value.turnstileSiteKey === "string"
+        )
+      )
+        throw Error();
+      if (configRequest.current !== controller) return;
+      if (mode.current && mode.current !== value.mode) clear();
+      mode.current = value.mode;
+      setConfig(value);
       setConfigError(false);
     } catch {
-      if (controller !== configRequest.current) return;
-      if (controller.signal.aborted && controller.signal.reason !== 'timeout') return;
-      setConfig(current => current ?? DEMO_CONFIG);
-      setConfigError(true);
+      if (configRequest.current === controller) {
+        setConfig((current) => current ?? demoConfig);
+        setConfigError(true);
+      }
     } finally {
-      window.clearTimeout(timeout);
-      if (controller === configRequest.current) setConfigLoading(false);
+      clearTimeout(timeout);
     }
-  }, [resetConversation]);
-
-  useEffect(() => { void loadConfig(); return () => { configRequest.current?.abort(); configRequest.current = null; }; }, [loadConfig]);
-  useEffect(() => { const online = () => void loadConfig(); window.addEventListener('online', online); return () => window.removeEventListener('online', online); }, [loadConfig]);
-  useEffect(() => () => { request.current?.abort(); session.current += 1; }, []);
+  }, [clear]);
+  useEffect(() => {
+    void loadConfig();
+    const online = () => void loadConfig();
+    window.addEventListener("online", online);
+    return () => {
+      configRequest.current?.abort();
+      configRequest.current = null;
+      window.removeEventListener("online", online);
+      request.current?.abort();
+      session.current++;
+    };
+  }, [loadConfig]);
   useEffect(() => {
     document.documentElement.lang = locale;
-    document.title = `IPPO — ${t.tagline}`;
-    try { localStorage.setItem(STORAGE.preferences, JSON.stringify(preferences)); } catch { setStorageError(true); }
+    document.title = `IPPO · ${t.tagline}`;
+    try {
+      localStorage.setItem(STORAGE.preferences, JSON.stringify(preferences));
+      localStorage.removeItem(STORAGE.step);
+    } catch {
+      setStorageError(true);
+    }
   }, [preferences, locale, t.tagline]);
   useEffect(() => {
     try {
-      if (saveHistory) localStorage.setItem(STORAGE.history, JSON.stringify({ locale, region, messages: messages.slice(-60) }));
+      if (saveHistory)
+        localStorage.setItem(
+          STORAGE.history,
+          JSON.stringify({ locale, region, messages: messages.slice(-60) }),
+        );
       else localStorage.removeItem(STORAGE.history);
-    } catch { setStorageError(true); }
-  }, [messages, saveHistory, locale, region]);
+    } catch {
+      setStorageError(true);
+    }
+  }, [messages, locale, region, saveHistory]);
   useEffect(() => {
-    try { localStorage.setItem(STORAGE.step, JSON.stringify(step)); } catch { setStorageError(true); }
-  }, [step]);
+    end.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+  }, [messages, loading, error]);
   useEffect(() => {
-    const checkDate = () => { const today = localDate(region); setStep(current => current.date === today ? current : freshStep(region)); };
-    checkDate();
-    const timer = window.setInterval(checkDate, 60000);
-    window.addEventListener('focus', checkDate);
-    return () => { window.clearInterval(timer); window.removeEventListener('focus', checkDate); };
-  }, [region]);
-  useEffect(() => { messagesEnd.current?.scrollIntoView({ behavior: 'instant', block: 'nearest' }); }, [messages, loading, error, tab]);
-  useEffect(() => {
-    if (!textarea.current) return;
-    textarea.current.style.height = 'auto';
-    textarea.current.style.height = `${Math.min(textarea.current.scrollHeight, 150)}px`;
+    if (input.current) {
+      input.current.style.height = "auto";
+      input.current.style.height = `${Math.min(input.current.scrollHeight, 120)}px`;
+    }
   }, [draft]);
-  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 5000); return () => window.clearTimeout(timer); }, [notice]);
   useEffect(() => {
-    if (!clearConfirmation || !dialog.current) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const buttons = Array.from(dialog.current.querySelectorAll<HTMLButtonElement>('button'));
-    buttons[0]?.focus();
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') { event.preventDefault(); setClearConfirmation(null); }
-      if (event.key !== 'Tab') return;
-      if (event.shiftKey && document.activeElement === buttons[0]) { event.preventDefault(); buttons.at(-1)?.focus(); }
-      else if (!event.shiftKey && document.activeElement === buttons.at(-1)) { event.preventDefault(); buttons[0]?.focus(); }
+    const vv = window.visualViewport;
+    const resize = () => {
+      document.documentElement.style.setProperty(
+        "--app-height",
+        `${vv?.height ?? innerHeight}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--app-top",
+        `${vv?.offsetTop ?? 0}px`,
+      );
     };
-    document.addEventListener('keydown', handleKey);
-    return () => { document.removeEventListener('keydown', handleKey); previous?.focus(); };
-  }, [clearConfirmation]);
-
-  function updateStep(change: (current: StepState) => StepState) {
-    setStep(current => change(current.date === localDate(region) ? current : freshStep(region)));
+    resize();
+    vv?.addEventListener("resize", resize);
+    vv?.addEventListener("scroll", resize);
+    window.addEventListener("resize", resize);
+    return () => {
+      vv?.removeEventListener("resize", resize);
+      vv?.removeEventListener("scroll", resize);
+      window.removeEventListener("resize", resize);
+    };
+  }, []);
+  function changeLocale(value: Locale) {
+    if (value === locale) return;
+    if (messages.length && !confirm(t.clearChatQuestion)) return;
+    clear();
+    setPreferences((p) => ({ ...p, locale: value }));
   }
-
-  function changeLocale(next: Locale) {
-    if (locale === next) return;
-    resetConversation();
-    setPreferences(current => ({ ...current, locale: next }));
-    setNotice('');
+  function changeRegion(value: Region) {
+    if (value === region) return;
+    if (messages.length && !confirm(t.clearChatQuestion)) return;
+    clear();
+    setPreferences((p) => ({ ...p, region: value }));
   }
-  function changeRegion(next: Region) {
-    if (region === next) return;
-    resetConversation();
-    setPreferences(current => ({ ...current, region: next }));
-    setNotice('');
+  function newChat() {
+    if ((messages.length || draft) && !confirm(t.clearChatQuestion)) return;
+    clear();
+    menu.current?.close();
+    input.current?.focus();
   }
-
-  async function sendMessage(supplied?: string, retry?: DisplayMessage[]) {
-    if (busy.current || !config || pwa.offline) return;
-    const content = (supplied ?? draft).trim();
-    if (!retry && !content) return;
-    if (content.length > config.maxMessageLength) { setError(t.tooLong); return; }
-    if (isLive && !consent) { setError(t.consentNeeded); return; }
-    if (isLive && !token) { setError(t.tokenRequired); return; }
-    const nextMessages = retry ?? [...messages, { id: crypto.randomUUID(), role: 'user' as const, content, mode: config.mode }];
-    const currentSession = session.current;
-    const controller = new AbortController();
+  function updateMission(messageId: string, status: MissionState["status"]) {
+    setMessages((current) =>
+      current.map((m) =>
+        m.id === messageId && m.mission
+          ? { ...m, mission: { ...m.mission, status } }
+          : m,
+      ),
+    );
+  }
+  async function send(previous?: DisplayMessage[]) {
+    if (busy.current || !config || configError || pwa.offline || (!previous && !draft.trim()))
+      return;
+    if (isLive && (!consent || !token)) return;
+    const next = previous ?? [
+      ...messages,
+      {
+        id: crypto.randomUUID(),
+        role: "user" as const,
+        content: draft.trim(),
+        mode: config.mode,
+      },
+    ];
+    const generation = session.current,
+      controller = new AbortController();
     request.current = controller;
     busy.current = true;
     setLoading(true);
-    setError('');
-    setRetryMessages(null);
-    setMessages(nextMessages);
-    setDraft('');
+    setError("");
+    setRetry(null);
+    setMessages(next);
+    setDraft("");
     const currentToken = token;
-    setToken('');
-    let timeout: number | undefined;
+    setToken("");
+    const timeout = setTimeout(() => controller.abort("timeout"), 45000);
     try {
       let answer: ChatResponse;
-      if (config.mode === 'demo') {
-        // Deliberately local and deterministic: demo conversations never leave the browser.
-        const latest = nextMessages[nextMessages.length - 1].content;
-        answer = { mode: 'demo', message: getDemoReply(latest, locale, nextMessages.filter(message => message.role === 'user').length - 1) };
+      if (config.mode === "demo") {
+        const latest = next.at(-1)!.content,
+          turn = next.filter((m) => m.role === "user").length - 1;
+        const mission = demoMission(latest, turn);
+        answer = {
+          mode: "demo",
+          message: mission
+            ? ko
+              ? "지금 할 수 있는 아주 작은 일부터 시작해볼까요? 부담된다면 미뤄도 괜찮아요."
+              : "今できそうな、小さなことから始めてみませんか。気が向かなければ、見送っても大丈夫です。"
+            : getDemoReply(latest, locale, turn),
+          mission,
+        };
       } else {
-        timeout = window.setTimeout(() => controller.abort('timeout'), 45000);
-        const response = await fetch('/api/chat', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
-          body: JSON.stringify({ locale, region, messages: contextMessages(nextMessages.filter(message => message.mode !== 'demo'), config.maxContextCharacters), consent: true, turnstileToken: currentToken }),
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            locale,
+            region,
+            consent: true,
+            turnstileToken: currentToken,
+            messages: contextMessages(
+              next.filter((m) => m.mode !== "demo"),
+              config.maxContextCharacters,
+            ),
+          }),
         });
-        const result = await response.json() as ChatResponse & { code?: string };
-        if (!response.ok) throw new Error(result?.code || 'provider_unavailable');
-        if (!result || typeof result.message !== 'string' || !result.message.trim() || result.message.length > MAX_MESSAGE_LENGTH || result.mode !== 'live') throw new Error('provider_unavailable');
-        answer = result;
+        const value = (await response.json()) as ChatResponse & {
+          code?: string;
+        };
+        if (!response.ok) throw Error(value.code || "provider_unavailable");
+        if (
+          value.mode !== "live" ||
+          typeof value.message !== "string" ||
+          !value.message.trim() ||
+          value.message.length > MAX_MESSAGE_LENGTH
+        )
+          throw Error("provider_unavailable");
+        answer = value;
       }
-      if (session.current !== currentSession || controller.signal.aborted) return;
-      setMessages(current => [...current, { id: crypto.randomUUID(), role: 'assistant', content: answer.message, mode: answer.mode }].slice(-60) as DisplayMessage[]);
+      if (session.current !== generation || controller.signal.aborted) return;
+      setMessages((current) =>
+        [
+          ...current,
+          {
+            id: crypto.randomUUID(),
+            role: "assistant" as const,
+            content: answer.message,
+            mode: answer.mode,
+            ...(isMissionId(answer.mission) &&
+            !current.some((m) => m.mission?.status === "active")
+              ? {
+                  mission: { id: answer.mission, status: "suggested" as const },
+                }
+              : {}),
+          },
+        ].slice(-60),
+      );
     } catch (caught) {
-      if (session.current !== currentSession) return;
-      if (controller.signal.aborted && controller.signal.reason !== 'timeout') return;
-      const labels: Record<string, string> = { daily_limit: t.dailyLimit, not_configured: t.notConfigured, verification_required: t.verificationError, consent_required: t.consentNeeded };
-      setError(labels[caught instanceof Error ? caught.message : ''] || t.error);
-      setRetryMessages(nextMessages);
+      if (session.current !== generation) return;
+      if (controller.signal.aborted && controller.signal.reason !== "timeout")
+        return;
+      const labels: Record<string, string> = {
+        daily_limit: t.dailyLimit,
+        not_configured: t.notConfigured,
+        verification_required: t.verificationError,
+      };
+      setError(
+        labels[caught instanceof Error ? caught.message : ""] || t.error,
+      );
+      setRetry(next);
     } finally {
-      if (timeout !== undefined) window.clearTimeout(timeout);
-      if (session.current === currentSession) {
-        request.current = null;
+      clearTimeout(timeout);
+      if (session.current === generation) {
         busy.current = false;
         setLoading(false);
-        setToken('');
-        setVerificationKey(value => value + 1);
+        setToken("");
+        setVerification((v) => v + 1);
       }
     }
   }
-
-  function clearData() {
-    resetConversation();
-    if (clearConfirmation === 'all') {
-      setPreferences(current => ({ ...current, saveHistory: false }));
-      setStep(freshStep(region));
-      try { localStorage.removeItem(STORAGE.step); localStorage.removeItem(STORAGE.history); } catch { setStorageError(true); }
-      setNotice(t.clearDone);
-    }
-  }
-
-  function exportChat() {
-    if (!messages.length) { setNotice(t.emptyExport); return; }
-    const text = `${t.exportTitle}\n${new Date().toISOString()}\n${t.exportNotice}\n\n${messages.map(message => `${message.role === 'user' ? t.you : `${t.assistant} (${message.mode === 'demo' ? t.responseDemo : t.responseAI})`}\n${message.content}`).join('\n\n')}`;
-    const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
-    const link = document.createElement('a'); link.href = url; link.download = `ippo-${localDate(region)}.txt`; link.click();
-    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-
-  const renderStepCard = (expanded = false) => {
-    const mission = missions[locale][step.mission];
-    const finished = step.status === 'completed';
-    const deferred = step.status === 'deferred';
-    return <div className={`step-card ${expanded ? 'expanded' : ''}`}>
-      <div className="step-card-top"><span className="eyebrow">{t.littleStep}</span><Sprout size={18} strokeWidth={1.6} /></div>
-      <div className="energy-section">
-        <h3>{t.energyQuestion}</h3>
-        <div className="energy-buttons" role="group" aria-label={t.energyQuestion}>
-          {[1, 2, 3, 4, 5].map(value => { const Icon = [BatteryLow, BatteryLow, BatteryMedium, BatteryFull, Zap][value - 1]; return <button key={value} className={`energy-button ${step.energy === value ? 'selected' : ''}`} aria-pressed={step.energy === value} aria-label={`${t.energyLabel} ${value}: ${t.energyNames[value - 1]}`} onClick={() => setStep({ date: localDate(region), energy: value, mission: value - 1, status: 'suggested' })}><span aria-hidden="true"><Icon size={18} strokeWidth={1.6} /></span><small>{value}</small></button>; })}
+  const help =
+    region === "JP"
+      ? "https://www.mhlw.go.jp/mamorouyokokoro/"
+      : "https://www.129.go.kr/109";
+  return (
+    <div className="conversation-app">
+      <header className="app-header">
+        <a className="app-brand" href="#chat" aria-label="IPPO">
+          <img
+            src="/brand/ippo-wordmark.svg"
+            width="1200"
+            height="600"
+            alt="IPPO"
+          />
+        </a>
+        <div className="header-title">
+          <strong>{t.chat}</strong>
+          <span>
+            {pwa.offline
+              ? pt.offline
+              : isLive
+                ? ko
+                  ? "당신의 속도로, 함께"
+                  : "あなたのペースで"
+                : t.demo}
+          </span>
         </div>
-        <div className="energy-labels"><span>{t.energyLow}</span><span>{t.energyHigh}</span></div>
-      </div>
-      <div className="mission-divider" />
-      <div className="mission-content">
-        <div className="mission-overline">{finished ? <CheckCheck size={15} /> : <Leaf size={14} />}<span>{finished ? t.completed : deferred ? t.deferred : step.status === 'active' ? t.active : t.suggested}</span></div>
-        <h3>{deferred ? t.deferred : mission.title}</h3>
-        <p>{finished ? t.completedNote : deferred ? t.deferredNote : mission.body}</p>
-        {!finished && !deferred && <span className="duration"><Clock3 size={13} />{mission.duration}{t.minutes}</span>}
-        {!finished && !deferred && <button className={`primary-button step-action ${step.status === 'active' ? 'sage-button' : ''}`} onClick={() => updateStep(current => ({ ...current, status: current.status === 'active' ? 'completed' : 'active' }))}>{step.status === 'active' ? <Check size={17} /> : <ArrowRight size={17} />}{step.status === 'active' ? t.completeStep : t.startStep}</button>}
-        {!finished && !deferred && <button className="defer-button" onClick={() => updateStep(current => ({ ...current, status: 'deferred' }))}>{t.defer}</button>}
-        {(finished || deferred) && <button className="secondary-button another-step" onClick={() => updateStep(current => ({ ...current, mission: (current.mission + 1) % 5, status: 'suggested' }))}><RefreshCw size={15} />{t.another}</button>}
-      </div>
-    </div>;
-  };
-
-  const renderSupport = (compact = false) => <section className={`support-card ${compact ? 'compact' : ''}`} aria-label={t.support}>
-    <Heart size={17} strokeWidth={1.5} /><h3>{t.support}</h3><p>{t.supportText}</p><a href={supportUrl} target="_blank" rel="noopener noreferrer" aria-label={`${supportLabel} (${t.externalLink})`}>{supportLabel}<ExternalLink size={13} /></a>
-  </section>;
-
-  return <div className="app-shell">
-    <aside className="sidebar">
-      <div><Brand locale={locale} /><p className="brand-tagline">{t.tagline}</p></div>
-      <nav className="desktop-nav" aria-label={locale === 'ja' ? 'メインメニュー' : '메인 메뉴'}>{nav.map(item => <button key={item.id} className={`nav-item ${tab === item.id ? 'active' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><item.icon size={20} strokeWidth={1.7} /><span>{item.label}</span>{tab === item.id && <span className="nav-active-dot" />}</button>)}</nav>
-      <button className="new-chat" onClick={() => { if (messages.length) setClearConfirmation('chat'); else { resetConversation(); setTab('chat'); textarea.current?.focus(); } }}><Plus size={17} />{t.newConversation}</button>
-      <div className="sidebar-bottom"><p>{t.sidebarNote}</p><div className="sidebar-divider" /><span className="sidebar-footer">{t.sidebarFooter}</span><span className="project-label">IPPO PROJECT · 2026</span></div>
-    </aside>
-
-    <div className="workspace">
-      <header className="topbar">
-        <div className="mobile-brand"><Brand locale={locale} /></div><button className="mobile-new-chat" aria-label={pt.newChat} onClick={() => { if (messages.length) setClearConfirmation('chat'); else { resetConversation(); setTab('chat'); } }}><Plus size={20} /></button>
-        <div className="breadcrumb"><span>{t.today}</span><span className="breadcrumb-divider">/</span><strong>{tab === 'chat' ? t.chat : tab === 'steps' ? t.steps : t.settings}</strong></div>
-        <div className="topbar-controls"><span className={`mode-pill ${isLive ? 'live' : ''}`}><span />{pwa.offline ? pt.offline : configLoading ? t.checking : isLive ? t.online : t.demo}</span><div className="language-control"><Globe2 size={15} /><select aria-label={t.language} title={t.languageHint} value={locale} onChange={event => changeLocale(event.target.value as Locale)}><option value="ja">日本語</option><option value="ko">한국어</option></select></div></div>
+        <div className="header-actions">
+          <button
+            aria-label={t.newConversation}
+            title={t.newConversation}
+            onClick={newChat}
+          >
+            <Plus size={20} />
+          </button>
+          <button
+            aria-label={ko ? "메뉴" : "メニュー"}
+            title={ko ? "메뉴" : "メニュー"}
+            onClick={() => menu.current?.showModal()}
+          >
+            <MoreHorizontal size={23} />
+          </button>
+        </div>
       </header>
-
-      {pwa.offline && <div className="app-notice" role="status"><strong>{pt.offline}</strong><span>{pt.offlineText}</span></div>}
-      {pwa.update && <div className="app-notice update-notice" role="status"><span>{pt.update}</span><button onClick={() => { if ((!draft && !messages.length) || window.confirm(pt.updateWarning)) pwa.applyUpdate(); }}>{pt.apply}</button></div>}
-      <div className={`workspace-body tab-${tab}`}>
-        <main id="main-content" className={`main-panel ${tab === 'chat' ? 'chat-panel' : 'content-panel'}`}>
-          {tab === 'chat' && <>
-            <div className="chat-scroll">
-              {messages.length === 0 ? <div className="welcome">
-                <div className="welcome-identity"><BrandMark className="hero-symbol" decorative={false} label={t.mascot} /><span className="welcome-kicker">{t.greeting}</span></div>
-                <h1>{t.heading}</h1><p className="welcome-intro">{t.intro}</p>
-                <div className="starter-prompts">{t.prompts.map((prompt, index) => { const Icon = [Leaf, Sparkles, Sun][index]; return <button key={prompt} onClick={() => { setDraft(prompt); textarea.current?.focus(); }}><Icon size={18} strokeWidth={1.5} /><span><small>{t.promptHints[index]}</small><strong>{prompt}</strong></span><ChevronRight size={15} /></button>; })}</div>
-              </div> : <div className="message-list" role="log" aria-label={t.chat} aria-live="polite" aria-relevant="additions text">
-                <div className="conversation-date">{new Intl.DateTimeFormat(locale === 'ja' ? 'ja-JP' : 'ko-KR', { month: 'long', day: 'numeric', timeZone: region === 'JP' ? 'Asia/Tokyo' : 'Asia/Seoul' }).format(new Date())}<span>·</span>{t.today}</div>
-                {messages.map(message => <div key={message.id} className={`message-row ${message.role}`}>
-                  {message.role === 'assistant' && <div className="avatar"><BrandMark className="chat-symbol" /></div>}
-                  <div className="message-group"><div className="message-label">{message.role === 'user' ? t.you : t.assistant}{message.role === 'assistant' && <span>{message.mode === 'demo' ? t.responseDemo : t.responseAI}</span>}</div><div className="message-bubble">{message.content}</div></div>
-                </div>)}
-                {loading && <div className="message-row assistant"><div className="avatar"><BrandMark className="chat-symbol" /></div><div className="loading-bubble" role="status"><LoaderCircle className="spinner" size={17} />{t.sending}</div></div>}
-              </div>}
-              {error && <div className="chat-error" role="alert"><CircleHelp size={18} /><div><p>{error}</p>{retryMessages && <button className="text-button" disabled={loading || (isLive && (!consent || !token))} onClick={() => void sendMessage('', retryMessages)}><RefreshCw size={14} />{t.retry}</button>}</div></div>}
-              <div ref={messagesEnd} />
+      {pwa.offline && (
+        <div className="connection-banner" role="status">
+          {pt.offlineText}
+        </div>
+      )}
+      {configError && !pwa.offline && (
+        <div className="connection-banner" role="status">
+          <span>{pt.connectionError}</span><button onClick={() => void loadConfig()}>{t.retryConnection}</button>
+        </div>
+      )}
+      {pwa.update && (
+        <div className="connection-banner" role="status">
+          <span>{pt.update}</span>
+          <button
+            onClick={() => {
+              if ((!draft && !messages.length) || confirm(pt.updateWarning))
+                pwa.applyUpdate();
+            }}
+          >
+            {pt.apply}
+          </button>
+        </div>
+      )}
+      <main className="conversation-scroll" aria-label={t.chat}>
+        {!messages.length ? (
+          <div className="conversation-welcome">
+            <BrandMark className="welcome-symbol" />
+            <span className="welcome-overline">
+              {ko ? "천천히, 이야기해요" : "ゆっくり、おはなししよう。"}
+            </span>
+            <h1>{t.heading}</h1>
+            <p>
+              {ko
+                ? "정리되지 않은 마음도 괜찮아요.\n이야기 속에서 작은 한 걸음을 찾아봐요."
+                : "まとまらない気持ちも、そのままで。\nおはなしの中から、小さな一歩を。"}
+            </p>
+            <div className="conversation-prompts">
+              {t.prompts.slice(0, 2).map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => {
+                    setDraft(prompt);
+                    input.current?.focus();
+                  }}
+                >
+                  {prompt}
+                  <Plus size={15} />
+                </button>
+              ))}
             </div>
-            <div className="composer-area">
-              {!isLive && <p className="demo-explanation"><span className="demo-dot" />{t.demoNote}</p>}
-              {isLive && !consent && <section className="consent-card"><div className="consent-heading"><ShieldCheck size={17} /><strong>{t.consentTitle}</strong></div><label><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} /><span>{t.consent}</span></label><p>{t.consentHint}</p></section>}
-              {isLive && consent && config.turnstileSiteKey && <Turnstile key={verificationKey} siteKey={config.turnstileSiteKey} locale={locale} onToken={setToken} />}
-              {isLive && !config.turnstileSiteKey && <p role="alert" className="inline-error">{t.verificationError}</p>}
-              <form className={`composer ${loading ? 'is-loading' : ''}`} onSubmit={event => { event.preventDefault(); void sendMessage(); }}>
-                <textarea ref={textarea} aria-label={t.placeholder} placeholder={t.placeholder} value={draft} rows={1} maxLength={MAX_MESSAGE_LENGTH} disabled={loading} onChange={event => { setDraft(event.target.value); if (error && !retryMessages) setError(''); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current && event.keyCode !== 229) { event.preventDefault(); void sendMessage(); } }} />
-                <div className="composer-bottom"><div><Leaf size={14} strokeWidth={1.5} /><span className="desktop-input-hint">{t.inputHint}</span><span className="mobile-input-hint">{t.mobileInputHint}</span>{draft.length > 800 && <span className="character-count">{draft.length}/{MAX_MESSAGE_LENGTH}</span>}</div>{loading ? <button type="button" className="send-button" aria-label={t.cancel} onClick={cancelRequest}><X size={21} /></button> : <button className="send-button" type="submit" aria-label={t.send} disabled={pwa.offline || !draft.trim() || !config || (isLive && (!consent || !token))}><ArrowUp size={22} /></button>}</div>
-              </form>
-              <p className="privacy-note"><LockKeyhole size={11} />{saveHistory ? t.savedHint : t.privacyHint}<button className="text-button" onClick={() => setTab('settings')}>{t.settings}</button></p>
-              <p className="medical-note">{t.disclaimer}</p>
-            </div>
-          </>}
-
-          {tab === 'steps' && <div className="steps-page"><span className="eyebrow">ONE SMALL STEP, AT YOUR PACE</span><h1>{t.stepHeading}</h1><p className="page-intro">{t.stepIntro}</p>{renderStepCard(true)}<div className="step-page-note"><Heart size={18} /><p>{t.noCompetition}</p><small>{t.stepLocal}</small></div>{renderSupport()}</div>}
-
-          {tab === 'settings' && <div className="settings-page"><span className="eyebrow">MAKE YOURSELF AT HOME</span><h1>{t.settingsHeading}</h1><p className="page-intro">{t.settingsIntro}</p>
-            <section className="install-card"><BrandMark className="install-symbol" /><div><h2>{pt.title}</h2><p>{pt.description}</p></div><span className="install-status">{pwa.installed ? pt.installed : pt.browser}</span>{pwa.canInstall && <button className="primary-button" disabled={pwa.installing} onClick={() => void pwa.install()}>{pwa.installing ? pt.installing : pt.install}</button>}<details><summary>{pt.instructions}</summary><h3>{pt.ios}</h3><p>{pt.iosSteps}</p><h3>{pt.android}</h3><p>{pt.androidSteps}</p></details><p className="offline-readiness">{pwa.failed ? pt.unavailable : pwa.ready ? pt.ready : pt.preparing}</p><p className="setting-hint">{pt.privacy}</p></section>
-            <section className="settings-section"><div className="section-heading"><Globe2 size={19} /><h2>{t.language}</h2></div><div className="segmented-control"><button className={locale === 'ja' ? 'selected' : ''} aria-pressed={locale === 'ja'} onClick={() => changeLocale('ja')}>日本語{locale === 'ja' && <Check size={16} />}</button><button className={locale === 'ko' ? 'selected' : ''} aria-pressed={locale === 'ko'} onClick={() => changeLocale('ko')}>한국어{locale === 'ko' && <Check size={16} />}</button></div><p className="setting-hint">{t.languageHint}</p><h3 className="setting-subheading">{t.region}</h3><div className="segmented-control"><button className={region === 'JP' ? 'selected' : ''} aria-pressed={region === 'JP'} onClick={() => changeRegion('JP')}>{t.japan}{region === 'JP' && <Check size={16} />}</button><button className={region === 'KR' ? 'selected' : ''} aria-pressed={region === 'KR'} onClick={() => changeRegion('KR')}>{t.korea}{region === 'KR' && <Check size={16} />}</button></div><p className="setting-hint">{t.regionHint}</p></section>
-            <section className="settings-section"><div className="section-heading"><LockKeyhole size={19} /><h2>{t.privacy}</h2></div><label className="save-setting"><span>{t.saveHistory}</span><input type="checkbox" role="switch" checked={saveHistory} onChange={event => setPreferences(current => ({ ...current, saveHistory: event.target.checked }))} /><span className="switch-visual" aria-hidden="true" /></label><p className="setting-hint">{t.saveDescription}</p><div className="data-actions"><button className="secondary-button" onClick={exportChat} disabled={!messages.length}><ArrowDownToLine size={16} />{t.export}</button><button className="secondary-button danger-button" onClick={() => setClearConfirmation('all')}><Trash2 size={16} />{t.clear}</button></div>{consent && <button className="text-button revoke-button" onClick={() => { cancelRequest(); setConsent(false); setError(''); setRetryMessages(null); setNotice(t.consentRevoked); }}>{t.revokeConsent}</button>}</section>
-            <section className="settings-section"><div className="section-heading"><ShieldCheck size={19} /><h2>{t.mode}</h2><span className={`mode-pill ${isLive ? 'live' : ''}`}><span />{isLive ? t.online : t.demo}</span></div><p className="setting-hint">{isLive ? t.liveDescription : t.demoDescription}</p>{configError && <div className="config-warning"><p>{isLive ? pt.connectionError : pt.connectionHelp}</p><button className="text-button" disabled={configLoading} onClick={() => void loadConfig()}><RefreshCw size={14} className={configLoading ? 'spinner' : ''} />{configLoading ? t.connectRetry : t.retryConnection}</button></div>}</section>
-            {renderSupport()}<p className="settings-disclaimer">{t.disclaimer}</p><div className="settings-footer"><Brand locale={locale} /><span>v0.1 · IPPO PROJECT</span></div>
-          </div>}
-        </main>
-        {tab === 'chat' && <aside className="right-panel"><div className="right-panel-heading"><span>{t.steps}</span><span className="today-date">{new Intl.DateTimeFormat(locale === 'ja' ? 'ja-JP' : 'ko-KR', { month: 'numeric', day: 'numeric', timeZone: region === 'JP' ? 'Asia/Tokyo' : 'Asia/Seoul' }).format(new Date())}</span></div>{renderStepCard()}<p className="gentle-reminder"><Heart size={13} />{t.noCompetition}</p>{renderSupport(true)}<p className="right-local-note">{t.stepLocal}</p></aside>}
-      </div>
+          </div>
+        ) : (
+          <div
+            className="conversation-messages"
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions text"
+          >
+            {messages.map((message) => (
+              <article
+                id={`message-${message.id}`}
+                key={message.id}
+                className={`message-row ${message.role}`}
+              >
+                {message.role === "assistant" && (
+                  <BrandMark className="message-avatar" />
+                )}
+                <div className="message-content">
+                  {message.role === "assistant" && (
+                    <div className="message-author">
+                      IPPO{" "}
+                      <span>
+                        {message.mode === "demo"
+                          ? t.responseDemo
+                          : t.responseAI}
+                      </span>
+                    </div>
+                  )}
+                  <div className="message-bubble">{message.content}</div>
+                  {message.mission &&
+                    (() => {
+                      const m = missionContent(message.mission.id, locale),
+                        status = message.mission.status;
+                      return (
+                        <section
+                          className={`inline-mission ${status}`}
+                          aria-label={
+                            ko ? "이야기 속 작은 미션" : "おはなしの小さな一歩"
+                          }
+                        >
+                          <div className="mission-eyebrow">
+                            <Sprout size={16} />
+                            <span>
+                              {ko
+                                ? "이야기 속 작은 한 걸음"
+                                : "おはなしから、小さな一歩"}
+                            </span>
+                            <small>
+                              <Clock3 size={12} />
+                              {m.duration}
+                              {ko ? "분" : "分"}
+                            </small>
+                          </div>
+                          <h2>{m.title}</h2>
+                          <p>{m.body}</p>
+                          {status === "completed" ? (
+                            <div className="mission-result" role="status">
+                              <Check size={17} />
+                              {ko
+                                ? "해냈어요. 이 한 걸음이면 충분해요."
+                                : "できました。この一歩で十分です。"}
+                            </div>
+                          ) : status === "deferred" ? (
+                            <div className="mission-result">
+                              {ko
+                                ? "괜찮아요. 마음이 내킬 때 다시 해봐요."
+                                : "大丈夫。また気が向いたときに。"}
+                            </div>
+                          ) : (
+                            <div className="mission-actions">
+                              <button
+                                className="mission-primary"
+                                disabled={status === "suggested" && !!active}
+                                onClick={() =>
+                                  updateMission(
+                                    message.id,
+                                    status === "active"
+                                      ? "completed"
+                                      : "active",
+                                  )
+                                }
+                              >
+                                {status === "active"
+                                  ? t.completeStep
+                                  : ko
+                                    ? "시작하기"
+                                    : "やってみる"}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  updateMission(message.id, "deferred")
+                                }
+                              >
+                                {ko ? "나중에 할게요" : "また今度"}
+                              </button>
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })()}
+                </div>
+              </article>
+            ))}
+            {loading && (
+              <div className="reply-loading" role="status">
+                <LoaderCircle size={16} />
+                {t.sending}
+              </div>
+            )}
+          </div>
+        )}
+        {error && (
+          <div className="conversation-error" role="alert">
+            <p>{error}</p>
+            {retry && (
+              <button
+                disabled={
+                  loading || configError || pwa.offline || (isLive && (!consent || !token))
+                }
+                onClick={() => void send(retry)}
+              >
+                {t.retry}
+              </button>
+            )}
+          </div>
+        )}
+        <div ref={end} />
+      </main>
+      <footer className="conversation-footer">
+        {active?.mission && (
+          <button
+            className="active-step"
+            onClick={() =>
+              document
+                .getElementById(`message-${active.id}`)
+                ?.scrollIntoView({ block: "center", behavior: "instant" })
+            }
+          >
+            <Sprout size={16} />
+            <span>{missionContent(active.mission.id, locale).title}</span>
+            <small>{ko ? "진행 중" : "取り組み中"}</small>
+            <ChevronDown size={14} />
+          </button>
+        )}
+        {isLive && !consent && (
+          <label className="chat-consent">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+            />
+            <span>{t.consent}</span>
+          </label>
+        )}
+        {isLive && consent && config?.turnstileSiteKey && (
+          <Turnstile
+            key={verification}
+            siteKey={config.turnstileSiteKey}
+            locale={locale}
+            onToken={setToken}
+          />
+        )}
+        {isLive && !config?.turnstileSiteKey && (
+          <p className="conversation-error" role="alert">
+            {t.verificationError}
+          </p>
+        )}
+        <form
+          className="conversation-composer"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
+        >
+          <textarea
+            ref={input}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={1}
+            maxLength={MAX_MESSAGE_LENGTH}
+            aria-label={t.placeholder}
+            placeholder={t.placeholder}
+            disabled={loading}
+            onCompositionStart={() => {
+              composing.current = true;
+            }}
+            onCompositionEnd={() => {
+              composing.current = false;
+            }}
+            onKeyDown={(e) => {
+              if (
+                e.key === "Enter" &&
+                !e.shiftKey &&
+                !e.nativeEvent.isComposing &&
+                !composing.current &&
+                e.keyCode !== 229
+              ) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+          />
+          {loading ? (
+            <button
+              type="button"
+              className="send-button"
+              aria-label={t.cancel}
+              onClick={cancel}
+            >
+              <X size={20} />
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="send-button"
+              aria-label={t.send}
+              disabled={
+                !draft.trim() ||
+                !config ||
+                configError || pwa.offline ||
+                (isLive && (!consent || !token))
+              }
+            >
+              <ArrowUp size={21} />
+            </button>
+          )}
+        </form>
+        <p className="composer-caption">
+          {!isLive
+            ? ko
+              ? "체험 모드 · AI가 아닌 예시 답변이에요."
+              : "体験モード · AIではなく、例文で応答します。"
+            : t.disclaimer}
+        </p>
+      </footer>
+      <dialog
+        ref={menu}
+        className="app-menu"
+        onClick={(e) => {
+          if (e.target === menu.current) menu.current.close();
+        }}
+      >
+        <div className="menu-content">
+          <header>
+            <h2>{ko ? "이야기 설정" : "おはなしの設定"}</h2>
+            <button
+              aria-label={ko ? "닫기" : "閉じる"}
+              onClick={() => menu.current?.close()}
+            >
+              <X size={21} />
+            </button>
+          </header>
+          <label className="menu-row">
+            <span>{t.language}</span>
+            <select
+              aria-label={t.language}
+              value={locale}
+              onChange={(e) => changeLocale(e.target.value as Locale)}
+            >
+              <option value="ja">日本語</option>
+              <option value="ko">한국어</option>
+            </select>
+          </label>
+          <label className="menu-row">
+            <span>{t.region}</span>
+            <select
+              aria-label={t.region}
+              value={region}
+              onChange={(e) => changeRegion(e.target.value as Region)}
+            >
+              <option value="JP">{t.japan}</option>
+              <option value="KR">{t.korea}</option>
+            </select>
+          </label>
+          <label className="menu-row">
+            <span>{t.saveHistory}</span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={saveHistory}
+              onChange={(e) =>
+                setPreferences((p) => ({ ...p, saveHistory: e.target.checked }))
+              }
+            />
+          </label>
+          <p className="menu-note">
+            {ko
+              ? "기본은 저장하지 않아요. 켜면 대화와 미션이 이 브라우저에 남아요."
+              : "初期設定では保存しません。オンにすると会話と一歩をこのブラウザに保存します。"}
+          </p>
+          <button
+            className="menu-delete"
+            onClick={() => {
+              if (confirm(t.clearQuestion)) {
+                clear();
+                setPreferences((p) => ({ ...p, saveHistory: false }));
+                menu.current?.close();
+              }
+            }}
+          >
+            {t.clear}
+          </button>
+          <details>
+            <summary>{pt.app}</summary>
+            <p>{pwa.installed ? pt.installed : pt.description}</p>
+            {pwa.canInstall && (
+              <button onClick={() => void pwa.install()}>{pt.install}</button>
+            )}
+            <p>{pt.iosSteps}</p>
+            <p>{pt.androidSteps}</p>
+            <p>
+              {pwa.ready
+                ? pt.ready
+                : pwa.failed
+                  ? pt.unavailable
+                  : pt.preparing}
+            </p>
+          </details>
+          {configError && (
+            <button onClick={() => void loadConfig()}>
+              {t.retryConnection}
+            </button>
+          )}
+          {consent && (
+            <button
+              onClick={() => {
+                cancel();
+                setConsent(false);
+              }}
+            >
+              {t.revokeConsent}
+            </button>
+          )}
+          <a
+            className="help-link"
+            href={help}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t.support} ↗
+          </a>
+          <p className="menu-note">{t.disclaimer}</p>
+        </div>
+      </dialog>
+      {storageError && (
+        <div className="storage-notice" role="alert">
+          {t.storageError}
+          <button aria-label={t.cancel} onClick={() => setStorageError(false)}>
+            <X size={15} />
+          </button>
+        </div>
+      )}
     </div>
-
-    <nav className="mobile-nav" aria-label={locale === 'ja' ? 'メインメニュー' : '메인 메뉴'}>{nav.map(item => <button key={item.id} className={tab === item.id ? 'active' : ''} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}><item.icon size={21} strokeWidth={1.7} /><span>{item.label}</span></button>)}</nav>
-    {(notice || storageError) && <div className="toast" role="status"><span>{notice || t.storageError}</span><button aria-label={t.cancel} onClick={() => { setNotice(''); setStorageError(false); }}><X size={15} /></button></div>}
-    {clearConfirmation && <div className="dialog-backdrop"><div ref={dialog} className="confirmation-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><div className="dialog-icon"><Trash2 size={22} /></div><h2 id="clear-title">{clearConfirmation === 'all' ? t.clearQuestion : t.clearChatQuestion}</h2><div className="dialog-actions"><button className="secondary-button" autoFocus onClick={() => setClearConfirmation(null)}>{t.cancel}</button><button className="primary-button" onClick={() => { clearData(); if (clearConfirmation === 'chat') setTab('chat'); }}>{clearConfirmation === 'all' ? t.clearConfirm : t.clearChatConfirm}</button></div></div></div>}
-  </div>;
+  );
 }
