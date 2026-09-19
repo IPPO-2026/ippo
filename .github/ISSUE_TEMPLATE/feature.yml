@@ -1,0 +1,18 @@
+name: 기능 제안 / Feature
+description: 사용자 문제와 완료 조건으로 다음 작업을 정리합니다.
+title: '[Feature] '
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 사용자 문제
+      description: 대상 사용자와 불편한 상황을 적어 주세요. 개인정보나 대화 원문은 올리지 마세요.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 범위와 완료 조건
+      value: "- [ ] 한국어·일본어 문구 확인\n- [ ] 모바일·키보드 사용 확인\n- [ ] 무료 한도와 개인정보 영향 확인"
+    validations:
+      required: true

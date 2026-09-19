@@ -1,0 +1,10 @@
+{
+  "name": "ippo — いっぽ · 잇포",
+  "short_name": "ippo",
+  "description": "今日の、ちいさな一歩。 오늘의, 작은 한 걸음.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f4ed",
+  "theme_color": "#f6f4ed",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

@@ -1,0 +1,17 @@
+name: 오류 보고 / Bug
+description: 재현할 수 있는 동작 오류를 알려 주세요.
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 재현 단계와 기대한 결과
+      description: 테스트용 문장만 사용하세요. 실명, IP, 비밀키, 실제 민감 대화는 제외하세요.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 브라우저 / 언어 / 모드
+      placeholder: Safari / ja / demo

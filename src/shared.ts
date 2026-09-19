@@ -1,0 +1,10 @@
+export type Locale = 'ko' | 'ja';
+export type Region = 'KR' | 'JP';
+export type ChatMessage = { role: 'user' | 'assistant'; content: string };
+export type ChatRequest = { locale: Locale; region: Region; messages: ChatMessage[]; consent: true; turnstileToken?: string };
+export type ChatResponse = { mode: 'demo' | 'live'; message: string };
+export type AppConfig = { mode: 'demo' | 'live'; turnstileSiteKey: string | null; maxMessageLength: number; maxContextCharacters: number };
+export type ApiError = { error: string; code: string };
+export const MAX_MESSAGE_LENGTH = 1000;
+export const MAX_CONTEXT_CHARACTERS = 3200;
+export const MAX_MESSAGES = 8;

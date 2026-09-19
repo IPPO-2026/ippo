@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ippo",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist", "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "ai": { "binding": "AI", "remote": true },
+  "d1_databases": [{
+    "binding": "DB", "database_name": "ippo-budget",
+    "database_id": "REPLACE_WITH_CREATED_DATABASE_ID",
+    "migrations_dir": "migrations"
+  }],
+  "vars": {
+    "CHAT_MODE": "live",
+    "TURNSTILE_SITE_KEY": "REPLACE_WITH_PUBLIC_SITE_KEY",
+    "DAILY_GLOBAL_LIMIT": "60",
+    "DAILY_IP_LIMIT": "6"
+  },
+  "triggers": { "crons": ["0 0 * * *"] },
+  "observability": { "enabled": false }
+}

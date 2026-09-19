@@ -1,0 +1,4 @@
+# Only for explicitly configured live development. Never commit real values.
+# Demo mode needs no secrets, account, database or AI calls.
+TURNSTILE_SECRET_KEY=replace-with-your-secret
+IP_HASH_SECRET=replace-with-at-least-32-random-characters
