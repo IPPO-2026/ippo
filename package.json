@@ -19,7 +19,9 @@
     "deploy:demo": "npm run build && wrangler deploy",
     "deploy:live": "npm run build && wrangler deploy --config wrangler.live.jsonc",
     "db:local": "wrangler d1 migrations apply ippo-budget --local --config wrangler.live.jsonc",
-    "test:pwa": "node scripts/smoke-pwa.mjs"
+    "test:pwa": "node scripts/smoke-pwa.mjs",
+    "build:pages": "npm run build && node scripts/build-pages.mjs",
+    "deploy:pages": "npm run build:pages && wrangler pages deploy --cwd pages --project-name ippo-app --branch main"
   },
   "dependencies": {
     "lucide-react": "^1.47.0",
