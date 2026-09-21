@@ -18,7 +18,9 @@ import {
   contextMessages,
   loadHistory,
   loadPreferences,
+  savePaymentReturn,
   STORAGE,
+  takePaymentReturn,
 } from "./local-state";
 import type { DisplayMessage } from "./local-state";
 import {
@@ -35,6 +37,11 @@ import { usePwa } from "./usePwa";
 import { pwaCopy } from "./pwa-copy";
 import "./conversation.css";
 const initial = loadPreferences();
+const returningFromPayment = ["success", "fail"].includes(
+  new URLSearchParams(location.search).get("paymentDemo") || "",
+)
+  ? takePaymentReturn(initial)
+  : null;
 const demoConfig: AppConfig = {
   mode: "demo",
   turnstileSiteKey: null,
@@ -48,9 +55,9 @@ export default function App() {
     pt = pwaCopy[locale];
   const ko = locale === "ko";
   const [messages, setMessages] = useState<DisplayMessage[]>(() =>
-    loadHistory(initial),
+    returningFromPayment?.messages ?? loadHistory(initial),
   );
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(returningFromPayment?.draft ?? "");
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [configError, setConfigError] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -91,6 +98,13 @@ export default function App() {
     setErrorCode("");
     setRetry(null);
   }, []);
+  const preparePaymentReturn = useCallback(() => {
+    try {
+      savePaymentReturn(preferences, messages, draft);
+    } catch {
+      setStorageError(true);
+    }
+  }, [draft, messages, preferences]);
   const clear = useCallback(() => {
     cancel();
     setMessages([]);
@@ -898,6 +912,7 @@ export default function App() {
           }
           onClose={closePayment}
           onGranted={paymentGranted}
+          onBeforeRedirect={preparePaymentReturn}
         />
       )}
     </div>

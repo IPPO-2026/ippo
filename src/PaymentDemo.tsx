@@ -20,11 +20,13 @@ export default function PaymentDemo({
   result,
   onClose,
   onGranted,
+  onBeforeRedirect,
 }: {
   locale: Locale;
   result: PaymentResult;
   onClose: () => void;
   onGranted: () => void;
+  onBeforeRedirect: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [widgets, setWidgets] = useState<TossPaymentsWidgets | null>(null);
@@ -152,6 +154,7 @@ export default function PaymentDemo({
     if (!widgets || !orderId || requesting) return;
     setRequesting(true);
     try {
+      onBeforeRedirect();
       const params = new URLSearchParams({ paymentDemo: "success" });
       const failParams = new URLSearchParams({ paymentDemo: "fail" });
       await widgets.requestPayment({
@@ -169,11 +172,11 @@ export default function PaymentDemo({
   return (
     <dialog
       ref={dialog}
-      className="payment-demo"
+      className={`payment-demo${result ? " payment-demo--result" : ""}`}
       aria-labelledby="payment-demo-title"
       onClose={onClose}
     >
-      <header className="payment-demo-header">
+      {!result && <header className="payment-demo-header">
         <div>
           <span className="payment-demo-badge">TOSS PAYMENTS · TEST</span>
           <h2 id="payment-demo-title">
@@ -187,7 +190,7 @@ export default function PaymentDemo({
         >
           <X size={20} />
         </button>
-      </header>
+      </header>}
 
       {result ? (
         <section className="payment-demo-result" role="status">
@@ -198,6 +201,7 @@ export default function PaymentDemo({
           ) : (
             <CreditCard size={28} />
           )}
+          <div className="payment-demo-result-copy">
           <h3>
             {result === "success" && confirmation === "confirming"
               ? ko
@@ -205,17 +209,17 @@ export default function PaymentDemo({
                 : "テスト決済を確認しています"
               : confirmation === "granted"
                 ? ko
-                  ? "오늘의 대화 10회가 추가됐어요"
-                  : "今日のトークが10回追加されました"
+                  ? "결제 성공"
+                  : "決済成功"
                 : ko
                 ? "테스트 결제가 완료되지 않았어요"
                 : "テスト決済は完了しませんでした"}
           </h3>
-          <p>
+          <p className="payment-demo-result-primary">
             {confirmation === "granted"
               ? ko
-                ? "실제 금액은 결제되지 않았고, 이 네트워크에서 오늘 사용할 수 있는 AI 대화가 10회 늘어났어요."
-                : "実際の請求はなく、このネットワークで本日使えるAIトークが10回増えました。"
+                ? "대화 가능 횟수 10회 추가"
+                : "トーク可能回数を10回追加"
               : confirmation === "confirming"
                 ? ko
                   ? "결제 정보와 주문 금액을 서버에서 확인한 뒤 횟수를 추가합니다."
@@ -224,6 +228,8 @@ export default function PaymentDemo({
                   ? "결제 정보를 확인할 수 없어 대화 횟수가 추가되지 않았어요. 다시 시도해주세요."
                   : "決済情報を確認できず、回数は追加されませんでした。もう一度お試しください。"}
           </p>
+          {confirmation === "granted" && <small>{ko ? "기존 대화를 이어서 이용할 수 있어요. · 테스트 결제" : "元の会話を続けられます。· テスト決済"}</small>}
+          </div>
           {confirmation !== "confirming" && (
             <button type="button" onClick={() => dialog.current?.close()}>
               {ko ? "대화로 돌아가기" : "会話に戻る"}

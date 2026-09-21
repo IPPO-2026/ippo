@@ -846,28 +846,34 @@ svg {
   text-align: center;
 }
 .payment-demo-result {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 54px 28px 34px;
-  text-align: center;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 12px;
+  padding: 20px;
 }
 .payment-demo-result > svg {
+  margin-top: 2px;
   color: #08755e;
 }
+.payment-demo--result { width: min(100% - 32px, 410px); }
+.payment-demo-result-copy { min-width: 0; }
 .payment-demo-result h3 {
-  margin: 18px 0 10px;
-  font-size: 19px;
+  margin: 0 0 3px;
+  font-size: 15px;
 }
 .payment-demo-result p {
-  max-width: 380px;
+  margin: 0;
   color: #708278;
-  font-size: 13px;
-  line-height: 1.8;
+  font-size: 12px;
+  line-height: 1.6;
 }
+.payment-demo-result .payment-demo-result-primary { color: #203b33; font-size: 14px; font-weight: 700; }
+.payment-demo-result small { display: block; margin-top: 5px; color: #87958d; font-size: 10px; line-height: 1.5; }
 .payment-demo-result button {
-  max-width: 320px;
-  margin-top: 28px;
+  grid-column: 1 / -1;
+  min-height: 44px;
+  margin-top: 4px;
 }
 
 @media (max-width: 600px) {

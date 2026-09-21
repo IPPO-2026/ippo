@@ -197,12 +197,28 @@ release();
 await page.getByRole("heading", { name: "오늘은 어떤 하루였나요?" }).waitFor();
 assert.equal(await page.getByText("STALE RESPONSE MUST NOT RETURN").count(), 0);
 assert.equal(await page.getByRole("checkbox").isChecked(), false);
+await page.evaluate(() => {
+  sessionStorage.setItem("ippo.payment-return.v1", JSON.stringify({
+    locale: "ko",
+    region: "JP",
+    messages: [
+      { id: "before-payment-user", role: "user", content: "결제 전 대화를 이어가고 싶어요", mode: "live" },
+      { id: "before-payment-assistant", role: "assistant", content: "돌아오면 여기서 이어갈게요.", mode: "live" },
+    ],
+    draft: "이어서 할 말",
+    savedAt: Date.now(),
+  }));
+});
 await page.goto(
   `${baseUrl}/?paymentDemo=success&paymentKey=test_payment_key_1234567890&orderId=IPPO_DEMO_serverowned1234567890&amount=1000`,
 );
 await page
-  .getByRole("heading", { name: "오늘의 대화 10회가 추가됐어요" })
+  .getByRole("heading", { name: "결제 성공" })
   .waitFor();
+await page.getByText("대화 가능 횟수 10회 추가", { exact: true }).waitFor();
+await page.getByText("결제 전 대화를 이어가고 싶어요", { exact: true }).waitFor();
+assert.equal(await page.getByRole("textbox").inputValue(), "이어서 할 말");
+assert.equal(await page.evaluate(() => sessionStorage.getItem("ippo.payment-return.v1")), null);
 console.log(
   "PASS: mocked live contract — consent, independent locale/region, localized quota error, no disguised demo response, bounded context and clear aborts pending response. This script does not call the real model.",
 );
