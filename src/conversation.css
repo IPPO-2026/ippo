@@ -110,29 +110,24 @@ svg {
 .app-header {
   display: flex;
   align-items: center;
-  gap: 18px;
-  height: calc(84px + env(safe-area-inset-top, 0px));
+  gap: 14px;
+  height: calc(72px + env(safe-area-inset-top, 0px));
   padding: env(safe-area-inset-top, 0px) 32px 0;
   flex-shrink: 0;
   border-bottom: 1px solid #edf1ee;
 }
 .app-brand img {
-  width: 88px;
-  height: 44px;
+  width: 80px;
+  height: 40px;
   border-radius: 10px;
 }
 .header-title {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: center;
 }
 .header-title strong {
   font-size: 14px;
   font-weight: 600;
-}
-.header-title span {
-  font-size: 11px;
-  color: #73877e;
 }
 .header-actions {
   display: flex;
@@ -543,6 +538,18 @@ svg {
 .menu-delete {
   color: #91604d;
 }
+.menu-new-chat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  background: #f2f7f4;
+  color: #205b43;
+  font-weight: 600;
+}
 .menu-content details {
   margin: 12px 0;
   border-block: 1px solid #eaf0ec;
@@ -585,7 +592,7 @@ svg {
     border: 0;
   }
   .app-header {
-    height: calc(68px + env(safe-area-inset-top, 0px));
+    height: calc(60px + env(safe-area-inset-top, 0px));
     padding-inline: 18px;
     gap: 12px;
   }
@@ -596,9 +603,6 @@ svg {
   }
   .header-title strong {
     font-size: 13px;
-  }
-  .header-title span {
-    font-size: 10px;
   }
   .header-actions {
     gap: 0;
@@ -887,7 +891,6 @@ svg {
     height: 28px;
     border-radius: 7px;
   }
-  html[data-keyboard-open="true"] .header-title span,
   html[data-keyboard-open="true"] .composer-caption,
   html[data-keyboard-open="true"] .active-step,
   html[data-keyboard-open="true"] .verification:has(.verification-status.ready) {

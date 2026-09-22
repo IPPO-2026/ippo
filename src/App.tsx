@@ -444,24 +444,8 @@ export default function App() {
         </a>
         <div className="header-title">
           <strong>{t.chat}</strong>
-          <span>
-            {pwa.offline
-              ? pt.offline
-              : isLive
-                ? ko
-                  ? "당신의 속도로, 함께"
-                  : "あなたのペースで"
-                : t.demo}
-          </span>
         </div>
         <div className="header-actions">
-          <button
-            aria-label={t.newConversation}
-            title={t.newConversation}
-            onClick={newChat}
-          >
-            <Plus size={20} />
-          </button>
           <button
             aria-label={ko ? "메뉴" : "メニュー"}
             title={ko ? "메뉴" : "メニュー"}
@@ -800,6 +784,10 @@ export default function App() {
               <X size={21} />
             </button>
           </header>
+          <button className="menu-new-chat" onClick={newChat}>
+            <Plus size={18} aria-hidden="true" />
+            {t.newConversation}
+          </button>
           <label className="menu-row">
             <span>{t.language}</span>
             <select
@@ -852,6 +840,17 @@ export default function App() {
           </button>
           <details>
             <summary>{pt.app}</summary>
+            <p className="menu-service-status">
+              {pt.status}: {pwa.offline
+                ? pt.offline
+                : configError
+                  ? pt.connectionError
+                  : !config
+                    ? ko ? "확인 중" : "確認中"
+                    : isLive
+                      ? ko ? "AI 대화 사용 중" : "AIトークを利用中"
+                      : t.demo}
+            </p>
             <p>{pwa.installed ? pt.installed : pt.description}</p>
             {pwa.canInstall && (
               <button onClick={() => void pwa.install()}>{pt.install}</button>
