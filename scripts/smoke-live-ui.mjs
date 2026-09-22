@@ -8,6 +8,11 @@ const browser = await chromium.launch({
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
 });
+let remaining = 3;
+let limitedBy = "personal";
+await context.route("**/api/quota", (route) => route.fulfill({ json: { quota: {
+  remaining, limitedBy, resetsAt: Date.now() + 86400000,
+} } }));
 await context.route("**/api/config", (route) =>
   route.fulfill({
     json: {
@@ -32,6 +37,7 @@ await page.goto(baseUrl);
 await page.getByRole("button", { name: "メニュー", exact: true }).click();
 await page.getByRole("combobox").first().selectOption("ko");
 await page.getByRole("button", { name: "닫기", exact: true }).click();
+await page.getByText("오늘 3회 남음", { exact: true }).waitFor();
 await page.getByRole("textbox").fill("안녕하세요");
 assert.equal(
   await page
@@ -57,16 +63,17 @@ await page.getByText('연결을 다시 확인해 주세요', {exact:true}).waitF
 await page.locator('.verification-retry').click();
 await page.getByText('이야기할 준비가 됐어요', {exact:true}).waitFor();
 assert.equal(await page.locator('.send-button').isEnabled(), true);
-await context.route("**/api/chat", (route) =>
-  route.fulfill({
+await context.route("**/api/chat", (route) => {
+  remaining = 0;
+  return route.fulfill({
     status: 429,
     json: {
       code: "daily_limit",
       error:
         "오늘 AI 이용 한도에 도달했어요. 오전 9시 이후 다시 대화할 수 있어요.",
     },
-  }),
-);
+  });
+});
 await context.route("https://js.tosspayments.com/v2/standard", (route) =>
   route.fulfill({
     contentType: "application/javascript",
@@ -92,6 +99,7 @@ await context.route("**/api/demo-topup/confirm", (route) =>
 );
 await page.getByRole("button", { name: "메시지 보내기", exact: true }).click();
 await page.getByRole("alert").filter({ hasText: "한도" }).waitFor();
+await page.getByText("오늘 0회 남음", { exact: true }).waitFor();
 assert.equal(await page.locator(".message-row.assistant").count(), 0);
 await page.getByRole("button", { name: "추가 결제하기", exact: true }).click();
 await page
@@ -202,6 +210,7 @@ let releaseConfirmation;
 const confirmationGate = new Promise((resolve) => (releaseConfirmation = resolve));
 await context.route("**/api/demo-topup/confirm", async (route) => {
   await confirmationGate;
+  remaining = 10;
   await route.fulfill({ json: { granted: true, extraUses: 10 } });
 });
 await page.evaluate(() => {
@@ -234,6 +243,11 @@ await page.locator(".payment-demo").waitFor({ state: "detached", timeout: 6000 }
 assert.equal(await page.getByRole("textbox").evaluate((element) => element === document.activeElement), true);
 assert.equal(await page.getByRole("textbox").inputValue(), "이어서 할 말");
 assert.equal(new URL(page.url()).search, "", "remove payment parameters after returning to chat");
+assert.equal(await page.locator(".quota-hint").count(), 0, "hide the balance when more than three uses remain after payment");
+remaining = 2;
+limitedBy = "service";
+await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+await page.getByText("오늘 서비스 전체 2회 남음", { exact: true }).waitFor();
 await page.getByText("결제 전 대화를 이어가고 싶어요", { exact: true }).waitFor();
 await context.unroute("**/api/demo-topup/confirm");
 await context.route("**/api/demo-topup/confirm", (route) =>

@@ -5,6 +5,7 @@ export type ChatRequest = { locale: Locale; region: Region; messages: ChatMessag
 export type ChatResponse = { mode: 'demo' | 'live'; message: string; mission?: import('./chat-missions').MissionId };
 export type AppConfig = { mode: 'demo' | 'live'; turnstileSiteKey: string | null; maxMessageLength: number; maxContextCharacters: number };
 export type ApiError = { error: string; code: string };
+export type ChatQuota = { remaining: number; limitedBy: 'personal' | 'service'; resetsAt: number };
 export const MAX_MESSAGE_LENGTH = 1000;
 export const MAX_CONTEXT_CHARACTERS = 3200;
 export const MAX_MESSAGES = 8;

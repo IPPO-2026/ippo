@@ -3,6 +3,7 @@ import type { Locale } from '../src/shared';
 import { demoReply, extractMissionReply, parseChatRequest, systemPrompt } from './policy';
 import { dailyLimit, ipBucket, reserve } from './budget';
 import { confirmDemoPayment, createDemoOrder, grantedUses } from './demo-payment';
+import { readQuota } from './quota';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -62,11 +63,18 @@ export default {
     const isChat = url.pathname === '/api/chat';
     const isOrder = url.pathname === '/api/demo-topup/order';
     const isConfirm = url.pathname === '/api/demo-topup/confirm';
-    if (!isChat && !isOrder && !isConfirm) return json({ code: 'not_found' }, 404);
+    const isQuota = url.pathname === '/api/quota';
+    if (!isChat && !isOrder && !isConfirm && !isQuota) return json({ code: 'not_found' }, 404);
     if (request.method !== 'POST') return json({ code: 'method_not_allowed' }, 405, { Allow: 'POST' });
     if (request.headers.get('Origin') !== url.origin) return fail('forbidden', 403);
     if (request.headers.get('Content-Type')?.toLowerCase().split(';')[0].trim() !== 'application/json') return fail('invalid_request', 415);
     const paymentIp = request.headers.get('CF-Connecting-IP');
+    if (isQuota) {
+      if (!paymentIp) return fail('forbidden', 403);
+      if (env.CHAT_MODE !== 'live') return json({ quota: null });
+      try { return json({ quota: await readQuota(env, paymentIp) }); }
+      catch { return fail('not_configured', 503); }
+    }
     if (isOrder || isConfirm) {
       if (!paymentIp) return fail('forbidden', 403);
       return isOrder

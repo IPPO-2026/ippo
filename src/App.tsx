@@ -34,6 +34,7 @@ import {
 import Turnstile from "./Turnstile";
 import PaymentDemo from "./PaymentDemo";
 import { usePwa } from "./usePwa";
+import { useChatQuota } from "./useChatQuota";
 import { pwaCopy } from "./pwa-copy";
 import "./conversation.css";
 const initial = loadPreferences();
@@ -84,6 +85,7 @@ export default function App() {
   const mode = useRef<AppConfig["mode"] | null>(null);
   const pwa = usePwa();
   const isLive = config?.mode === "live";
+  const { quota, refresh: refreshQuota } = useChatQuota(isLive && !configError && !pwa.offline);
   const active = messages.find((m) => m.mission?.status === "active");
   const cancel = useCallback(() => {
     session.current++;
@@ -97,7 +99,8 @@ export default function App() {
     setError("");
     setErrorCode("");
     setRetry(null);
-  }, []);
+    void refreshQuota();
+  }, [refreshQuota]);
   const preparePaymentReturn = useCallback(() => {
     try {
       savePaymentReturn(preferences, messages, draft);
@@ -378,6 +381,7 @@ export default function App() {
       setRetry(next);
     } finally {
       clearTimeout(timeout);
+      if (config.mode === "live") void refreshQuota();
       if (session.current === generation) {
         busy.current = false;
         setLoading(false);
@@ -698,6 +702,14 @@ export default function App() {
         {isLive && !config?.turnstileSiteKey && (
           <p className="conversation-error" role="alert">
             {t.verificationError}
+          </p>
+        )}
+        {!loading && quota && quota.remaining <= 3 && (
+          <p className="quota-hint" role="status" title={ko ? "같은 네트워크에서 횟수를 공유하며 오전 9시에 초기화돼요." : "同じネットワークで回数を共有し、午前9時にリセットされます。"}>
+            <span className="quota-dot" aria-hidden="true" />
+            {quota.limitedBy === "service"
+              ? ko ? `오늘 서비스 전체 ${quota.remaining}회 남음` : `本日サービス全体で残り${quota.remaining}回`
+              : ko ? `오늘 ${quota.remaining}회 남음` : `今日は残り${quota.remaining}回`}
           </p>
         )}
         <form

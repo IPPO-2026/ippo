@@ -702,6 +702,8 @@ svg {
 }
 
 .verification { margin: 0 0 10px; }
+.quota-hint { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin: 0 8px 8px; color: #647b70; font-size: 11px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.quota-dot { width: 5px; height: 5px; border-radius: 50%; background: #5d9882; }
 .verification-status { display: flex; align-items: center; justify-content: center; gap: 7px; width: fit-content; min-height: 30px; margin: 0 auto; padding: 5px 12px; border: 1px solid #dcece2; border-radius: 18px; background: #f3faf6; color: #438269; font-size: 11px; line-height: 1.6; }
 .verification-status.checking { background: #f7f9f8; border-color: #e9efeb; color: #7b8e83; }
 .verification-status.failed { flex-wrap: wrap; background: #fff9f2; border-color: #eee0ce; color: #8c6543; }

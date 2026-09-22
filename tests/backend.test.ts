@@ -67,6 +67,12 @@ function payment(path: 'order' | 'confirm', payload: unknown, requestIp = ip) {
   });
 }
 
+function quotaRequest(requestIp = ip) {
+  return new Request(`${origin}/api/quota`, {
+    method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': requestIp }, body: '{}',
+  });
+}
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date('2026-09-19T01:00:00Z'));
@@ -318,10 +324,13 @@ describe('verified test-payment quota grants', () => {
     expect(await repeated.json()).toEqual({ granted: true, extraUses: 10 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
+    expect(await (await worker.fetch(quotaRequest(), env)).json()).toMatchObject({ quota: { remaining: 11 } });
+
     const chats = [];
     for (let index = 0; index < 11; index += 1) chats.push(await worker.fetch(chat(), env));
     expect(chats.every((response) => response.status === 200)).toBe(true);
     expect((await worker.fetch(chat(), env)).status).toBe(429);
+    expect(await (await worker.fetch(quotaRequest(), env)).json()).toMatchObject({ quota: { remaining: 0 } });
   });
 
   it('rejects forged, mismatched, repeated-per-day, and foreign-origin grants', async () => {
@@ -359,5 +368,41 @@ describe('verified test-payment quota grants', () => {
     expect((await worker.fetch(chat(), env)).status).toBe(200);
     expect((await worker.fetch(chat(), env)).status).toBe(200);
     expect((await worker.fetch(chat(), env)).status).toBe(429);
+  });
+});
+
+describe('read-only remaining chat quota', () => {
+  it('reads the server count without consuming chat slots and resets on the next UTC day', async () => {
+    const { env, sqlite } = setup();
+    const response = await worker.fetch(quotaRequest(), env);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(await response.json()).toEqual({ quota: { remaining: 10, limitedBy: 'personal', resetsAt: Date.parse('2026-09-20T00:00:00Z') } });
+    await worker.fetch(quotaRequest(), env);
+    expect(sqlite.prepare('SELECT COUNT(*) AS n FROM request_budget').get()).toMatchObject({ n: 0 });
+    for (let i = 0; i < 7; i++) await worker.fetch(chat(), env);
+    expect(await (await worker.fetch(quotaRequest(), env)).json()).toMatchObject({ quota: { remaining: 3 } });
+    expect(await (await worker.fetch(quotaRequest('203.0.113.99'), env)).json()).toMatchObject({ quota: { remaining: 10 } });
+    vi.setSystemTime(new Date('2026-09-20T00:00:01Z'));
+    expect(await (await worker.fetch(quotaRequest(), env)).json()).toMatchObject({ quota: { remaining: 10, resetsAt: Date.parse('2026-09-21T00:00:00Z') } });
+  });
+
+  it('shows the effective global balance, including reserved slots after model failure', async () => {
+    const { env, run } = setup();
+    env.DAILY_GLOBAL_LIMIT = '2';
+    run.mockRejectedValueOnce(new Error('synthetic provider failure'));
+    expect((await worker.fetch(chat(), env)).status).toBe(503);
+    expect(await (await worker.fetch(quotaRequest(), env)).json()).toMatchObject({ quota: { remaining: 1, limitedBy: 'service' } });
+    await worker.fetch(chat(), env);
+    expect(await (await worker.fetch(quotaRequest(), env)).json()).toMatchObject({ quota: { remaining: 0, limitedBy: 'service' } });
+  });
+
+  it('rejects missing IP and foreign origins and does not invent a balance when D1 is unavailable', async () => {
+    const { env } = setup();
+    expect((await worker.fetch(quotaRequest(''), env)).status).toBe(403);
+    const foreign = quotaRequest();
+    foreign.headers.set('Origin', 'https://attacker.example');
+    expect((await worker.fetch(foreign, env)).status).toBe(403);
+    expect((await worker.fetch(quotaRequest(), { ...env, DB: undefined })).status).toBe(503);
+    expect(await (await worker.fetch(quotaRequest(), { ...env, CHAT_MODE: 'demo' })).json()).toEqual({ quota: null });
   });
 });
