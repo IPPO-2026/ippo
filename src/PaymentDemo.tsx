@@ -48,6 +48,12 @@ export default function PaymentDemo({
   }, []);
 
   useEffect(() => {
+    if (confirmation !== "granted") return;
+    const timer = window.setTimeout(() => dialog.current?.close(), 3000);
+    return () => window.clearTimeout(timer);
+  }, [confirmation]);
+
+  useEffect(() => {
     if (result) return;
     let disposed = false;
     let paymentMethods: WidgetPaymentMethodWidget | undefined;
@@ -202,7 +208,7 @@ export default function PaymentDemo({
             <CreditCard size={28} />
           )}
           <div className="payment-demo-result-copy">
-          <h3>
+          <h3 id="payment-demo-title">
             {result === "success" && confirmation === "confirming"
               ? ko
                 ? "테스트 결제를 확인하고 있어요"
@@ -228,7 +234,7 @@ export default function PaymentDemo({
                   ? "결제 정보를 확인할 수 없어 대화 횟수가 추가되지 않았어요. 다시 시도해주세요."
                   : "決済情報を確認できず、回数は追加されませんでした。もう一度お試しください。"}
           </p>
-          {confirmation === "granted" && <small>{ko ? "기존 대화를 이어서 이용할 수 있어요. · 테스트 결제" : "元の会話を続けられます。· テスト決済"}</small>}
+          {confirmation === "granted" && <small>{ko ? "잠시 후 대화로 돌아가요. · 테스트 결제" : "まもなく会話に戻ります。· テスト決済"}</small>}
           </div>
           {confirmation !== "confirming" && (
             <button type="button" onClick={() => dialog.current?.close()}>

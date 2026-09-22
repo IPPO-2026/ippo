@@ -426,6 +426,7 @@ export default function App() {
       "message",
     ].forEach((key) => url.searchParams.delete(key));
     history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    requestAnimationFrame(() => input.current?.focus({ preventScroll: true }));
   }
   const help =
     region === "JP"

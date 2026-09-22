@@ -197,6 +197,13 @@ release();
 await page.getByRole("heading", { name: "오늘은 어떤 하루였나요?" }).waitFor();
 assert.equal(await page.getByText("STALE RESPONSE MUST NOT RETURN").count(), 0);
 assert.equal(await page.getByRole("checkbox").isChecked(), false);
+await context.unroute("**/api/demo-topup/confirm");
+let releaseConfirmation;
+const confirmationGate = new Promise((resolve) => (releaseConfirmation = resolve));
+await context.route("**/api/demo-topup/confirm", async (route) => {
+  await confirmationGate;
+  await route.fulfill({ json: { granted: true, extraUses: 10 } });
+});
 await page.evaluate(() => {
   sessionStorage.setItem("ippo.payment-return.v1", JSON.stringify({
     locale: "ko",
@@ -212,6 +219,10 @@ await page.evaluate(() => {
 await page.goto(
   `${baseUrl}/?paymentDemo=success&paymentKey=test_payment_key_1234567890&orderId=IPPO_DEMO_serverowned1234567890&amount=1000`,
 );
+await page.getByRole("heading", { name: "테스트 결제를 확인하고 있어요" }).waitFor();
+await page.waitForTimeout(3200);
+assert.equal(await page.locator(".payment-demo").isVisible(), true, "pending approval must not auto-close");
+releaseConfirmation();
 await page
   .getByRole("heading", { name: "결제 성공" })
   .waitFor();
@@ -219,6 +230,21 @@ await page.getByText("대화 가능 횟수 10회 추가", { exact: true }).waitF
 await page.getByText("결제 전 대화를 이어가고 싶어요", { exact: true }).waitFor();
 assert.equal(await page.getByRole("textbox").inputValue(), "이어서 할 말");
 assert.equal(await page.evaluate(() => sessionStorage.getItem("ippo.payment-return.v1")), null);
+await page.locator(".payment-demo").waitFor({ state: "detached", timeout: 6000 });
+assert.equal(await page.getByRole("textbox").evaluate((element) => element === document.activeElement), true);
+assert.equal(await page.getByRole("textbox").inputValue(), "이어서 할 말");
+assert.equal(new URL(page.url()).search, "", "remove payment parameters after returning to chat");
+await page.getByText("결제 전 대화를 이어가고 싶어요", { exact: true }).waitFor();
+await context.unroute("**/api/demo-topup/confirm");
+await context.route("**/api/demo-topup/confirm", (route) =>
+  route.fulfill({ status: 400, json: { code: "payment_failed" } }),
+);
+await page.goto(`${baseUrl}/?paymentDemo=success&paymentKey=invalid_payment_key_1234567890&orderId=IPPO_DEMO_serverowned1234567890&amount=1000`);
+await page.getByRole("heading", { name: "테스트 결제가 완료되지 않았어요" }).waitFor();
+await page.waitForTimeout(3200);
+assert.equal(await page.locator(".payment-demo").isVisible(), true, "failed approval must stay visible");
+await page.getByRole("button", { name: "대화로 돌아가기", exact: true }).click();
+await page.locator(".payment-demo").waitFor({ state: "detached" });
 console.log(
   "PASS: mocked live contract — consent, independent locale/region, localized quota error, no disguised demo response, bounded context and clear aborts pending response. This script does not call the real model.",
 );
