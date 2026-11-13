@@ -16,9 +16,26 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+      - run: npm run eval:prepare
       - run: node scripts/build-pages.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:pwa
+      - name: Verify conversation and mocked live contract
+        shell: bash
+        run: |
+          npx wrangler dev --ip 127.0.0.1 --port 8791 > /tmp/ippo-ui-worker.log 2>&1 &
+          worker_pid=$!
+          trap 'kill "$worker_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..45}; do
+            if curl --fail --silent http://127.0.0.1:8791/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8791/api/health
+          npm run test:ui
+          npm run test:ui:live-contract
+        env:
+          IPPO_TEST_URL: http://127.0.0.1:8791
+          WRANGLER_SEND_METRICS: 'false'
       - run: npx wrangler deploy --dry-run --outdir /tmp/ippo-worker
         env:
           WRANGLER_SEND_METRICS: 'false'

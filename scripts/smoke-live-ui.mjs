@@ -5,8 +5,12 @@ const browser = await chromium.launch({
   channel: process.env.PLAYWRIGHT_CHROME_CHANNEL || undefined,
   headless: true,
 });
+try {
 const context = await browser.newContext({
   viewport: { width: 390, height: 844 },
+  // Keep mocked APIs behind Playwright routes, including after a reload.
+  // Real service worker installation/offline behavior is tested by smoke-pwa.mjs.
+  serviceWorkers: "block",
 });
 let remaining = 3;
 let limitedBy = "personal";
@@ -262,4 +266,6 @@ await page.locator(".payment-demo").waitFor({ state: "detached" });
 console.log(
   "PASS: mocked live contract — consent, independent locale/region, localized quota error, no disguised demo response, bounded context and clear aborts pending response. This script does not call the real model.",
 );
-await browser.close();
+} finally {
+  await browser.close();
+}
