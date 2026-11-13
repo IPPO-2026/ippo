@@ -10,6 +10,7 @@ try {
   for (const width of [1440, 390]) {
     const context = await browser.newContext({
       viewport: { width, height: width === 390 ? 844 : 1000 },
+      serviceWorkers: "block",
     });
     const page = await context.newPage();
     const errors = [];
@@ -133,6 +134,17 @@ try {
       .getByText("괜찮아요. 마음이 내킬 때 다시 해봐요.", { exact: true })
       .waitFor();
     await page.getByRole("button", { name: "메뉴", exact: true }).click();
+    await page.getByRole("switch").uncheck();
+    await page.waitForFunction(() => localStorage.getItem("ippo.history.v1") === null);
+    await page.getByRole("button", { name: "닫기", exact: true }).click();
+    await page.reload();
+    await page.getByRole("heading", { name: "오늘은 어떤 하루였나요?" }).waitFor();
+    assert.equal(await page.locator(".inline-mission").count(), 0, "turning off storage clears persisted conversation and missions");
+    await page.getByRole("textbox").fill("정리 미션을 추천해 주세요");
+    await page.getByRole("button", { name: "메시지 보내기", exact: true }).click();
+    await page.getByRole("heading", { name: "내 주변, 딱 한 곳만." }).waitFor();
+    await page.getByRole("button", { name: "메뉴", exact: true }).click();
+    await page.getByRole("switch").check();
     await page
       .getByRole("button", { name: "대화·한 걸음 기록 지우기", exact: true })
       .click();
@@ -144,6 +156,13 @@ try {
       await page.evaluate(() => localStorage.getItem("ippo.history.v1")),
       null,
     );
+    await page.getByRole("button", { name: "메뉴", exact: true }).click();
+    assert.equal(await page.getByRole("combobox").nth(1).inputValue(), "JP", "Korean UI can use Japan as its help region");
+    await page.getByRole("combobox").nth(1).selectOption("KR");
+    await page.getByRole("combobox").first().selectOption("ja");
+    assert.equal(await page.getByRole("combobox").nth(1).inputValue(), "KR", "Japanese UI keeps the independently selected Korea region");
+    await page.getByRole("button", { name: "閉じる", exact: true }).click();
+    await page.getByRole("heading", { name: "今日は、どんな一日？" }).waitFor();
     const bounds = await page.locator(".conversation-composer").boundingBox();
     assert(bounds.y + bounds.height <= (width === 390 ? 844 : 1000));
     assert.deepEqual(errors, []);

@@ -55,7 +55,7 @@ flowchart LR
   U[일본·한국 브라우저] --> S[Cloudflare Static Assets\nReact + TypeScript]
   S -->|동의 후 최근 대화만 전송| W[Worker /api/chat]
   W --> T[Turnstile 검증]
-  W --> D[D1\n익명 요청 횟수만]
+  W --> D[D1\n가명화 사용량·테스트 주문]
   W --> A[Workers AI\nQwen3]
   S --> L[선택적 브라우저 저장\n미션·설정]
 ```
@@ -75,6 +75,8 @@ Cloudflare **Workers Free** 플랜과 기본 `workers.dev` 주소를 사용합�
 | [아키텍처](docs/architecture.md) | 데이터 흐름·API·현재/향후 데이터 설계 |
 | [무료 배포 가이드](docs/deployment.md) | 무료 한도·설정 순서·실제 AI 연결·운영 |
 | [개발 로드맵](docs/roadmap.md) | 단계별 범위와 완료 조건 |
+| [이슈 점검 기록](docs/issue-audit.md) | 완료·검토 대기·확장 보류의 근거 |
+| [AI 응답 평가 세트](eval/README.md) | 한·일 합성 24개 사례와 사람 검토 양식 |
 | [개인정보와 안전](docs/privacy-and-safety.md) | 전송·보관·삭제·한일 검토 과제 |
 | [기여 가이드](CONTRIBUTING.md) | 개발·검증·PR 규칙 |
 | [보안 보고](SECURITY.md) | 민감정보 없는 오류 보고 |
