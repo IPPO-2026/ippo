@@ -460,15 +460,64 @@ svg {
   color: #fff;
 }
 .reply-loading {
+  align-items: flex-start;
+  font-size: 13px;
+  color: #587366;
+}
+.reply-loading-copy {
+  max-width: calc(100% - 44px);
+  min-height: 36px;
+  padding: 8px 0;
+}
+.reply-loading-label {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
-  color: #789081;
-  margin: 15px 0;
+  line-height: 1.6;
 }
-.reply-loading svg {
-  animation: spin 1s linear infinite;
+.reply-loading-copy p {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: #718679;
+}
+.reply-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+}
+.reply-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #45987a;
+  animation: reply-pulse 1.4s ease-in-out infinite;
+}
+.reply-dots i:nth-child(2) { animation-delay: 160ms; }
+.reply-dots i:nth-child(3) { animation-delay: 320ms; }
+@keyframes reply-pulse {
+  0%, 60%, 100% { opacity: 0.4; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
+.reply-retry {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+}
+.conversation-error .reply-retry button {
+  padding: 8px 14px;
+  border: 1px solid #e5d5c8;
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.reply-retry small {
+  font-size: 11px;
+  color: #85664f;
 }
 @keyframes spin {
   to {

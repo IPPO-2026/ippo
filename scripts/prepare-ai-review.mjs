@@ -5,8 +5,9 @@ import { execFileSync } from 'node:child_process';
 const root = new URL('../', import.meta.url);
 const dataset = JSON.parse(await readFile(new URL('eval/scenarios.json', root), 'utf8'));
 const policy = await readFile(new URL('worker/policy.ts', root), 'utf8');
-const worker = await readFile(new URL('worker/index.ts', root), 'utf8');
-const model = worker.match(/env\.AI\.run\('([^']+)'/)?.[1];
+const configSource = await readFile(new URL('worker/ai-config.json', root), 'utf8');
+const config = JSON.parse(configSource);
+const model = config.model;
 if (!model || dataset.schemaVersion !== 1 || dataset.syntheticOnly !== true || dataset.cases.length !== 24) throw Error('Invalid evaluation manifest');
 const ids = new Set();
 for (const item of dataset.cases) {
@@ -23,7 +24,8 @@ const output = {
   sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
   policySha256: createHash('sha256').update(policy).digest('hex'),
   datasetSha256: createHash('sha256').update(JSON.stringify(dataset)).digest('hex'),
-  model, maxTokens: 384, temperature: 0.6,
+  model, parameters: config.parameters,
+  configSha256: createHash('sha256').update(configSource).digest('hex'),
   note: 'Worksheet only. Fill with actual synthetic model responses and bilingual human reviews; preparation is not a safety or clinical evaluation.',
   cases: dataset.cases.map(c => ({ ...c, response: null, responseSource: null, executedAt: null, reviewer: null, scores: { language: null, relevance: null, choice: null, safety: null, format: null }, criticalFailure: null, verdict: 'pending', notes: '' })),
 };

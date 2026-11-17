@@ -56,7 +56,7 @@ flowchart LR
   S -->|동의 후 최근 대화만 전송| W[Worker /api/chat]
   W --> T[Turnstile 검증]
   W --> D[D1\n가명화 사용량·테스트 주문]
-  W --> A[Workers AI\nQwen3]
+  W --> A[Workers AI\nGemma 4]
   S --> L[선택적 브라우저 저장\n미션·설정]
 ```
 

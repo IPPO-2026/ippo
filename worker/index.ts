@@ -4,6 +4,7 @@ import { demoReply, extractMissionReply, parseChatRequest, systemPrompt } from '
 import { dailyLimit, ipBucket, reserve } from './budget';
 import { confirmDemoPayment, createDemoOrder, grantedUses } from './demo-payment';
 import { readQuota } from './quota';
+import aiConfig from './ai-config.json';
 
 export interface Env {
   ASSETS: Fetcher;
@@ -29,6 +30,7 @@ const errors = {
   not_configured: ['AIの準備中です。小さな一歩は引き続き使えます。', 'AI 연결을 준비 중이에요. 작은 미션은 계속 이용할 수 있어요.'],
   daily_limit: ['今日のAI利用枠に達しました。午前9時以降にまたお話しできます。', '오늘 AI 이용 한도에 도달했어요. 오전 9시 이후 다시 대화할 수 있어요.'],
   provider_unavailable: ['今はAIにつながりません。少し時間をおいてお試しください。', '지금은 AI에 연결할 수 없어요. 잠시 뒤 다시 시도해 주세요.'],
+  provider_timeout: ['返答に時間がかかっています。少し待ってから、もう一度お試しください。', '답변이 늦어지고 있어요. 잠시 후 다시 시도해 주세요.'],
 } as const;
 function fail(code: keyof typeof errors, status: number, locale: Locale = 'ja', extra?: Record<string, string>): Response {
   return json({ code, error: errors[code][locale === 'ko' ? 1 : 0] }, status, extra);
@@ -59,7 +61,7 @@ export default {
     if (url.pathname === '/api/config' && request.method === 'GET') {
       return json({ mode: env.CHAT_MODE === 'live' ? 'live' : 'demo', turnstileSiteKey: env.TURNSTILE_SITE_KEY || null, maxMessageLength: MAX_MESSAGE_LENGTH, maxContextCharacters: MAX_CONTEXT_CHARACTERS });
     }
-    if (url.pathname === '/api/health' && request.method === 'GET') return json({ ok: true, service: 'ippo', mode: env.CHAT_MODE === 'live' ? 'live' : 'demo' });
+    if (url.pathname === '/api/health' && request.method === 'GET') return json({ ok: true, service: 'ippo', mode: env.CHAT_MODE === 'live' ? 'live' : 'demo', model: env.CHAT_MODE === 'live' ? aiConfig.model : null });
     const isChat = url.pathname === '/api/chat';
     const isOrder = url.pathname === '/api/demo-topup/order';
     const isConfirm = url.pathname === '/api/demo-topup/confirm';
@@ -109,9 +111,24 @@ export default {
       const personal = await reserve(env.DB, personalBucket, personalLimit, expiresAt);
       const global = personal && await reserve(env.DB, `${day}:global`, dailyLimit(env.DAILY_GLOBAL_LIMIT, 60), expiresAt);
       if (!global) return fail('daily_limit', 429, locale, { 'Retry-After': String(Math.ceil((midnight + 86400000 - now.getTime()) / 1000)) });
-      const reply = await env.AI.run('@cf/qwen/qwen3-30b-a3b-fp8', {
-        messages: [{ role: 'system', content: systemPrompt(body) }, ...body.messages], max_tokens: 384, temperature: 0.6,
-      });
+      // One inference per reserved request; never retry or fall back to a paid model.
+      // A deadline bounds the HTTP response; it cannot cancel provider-side compute.
+      let deadline: ReturnType<typeof setTimeout> | undefined;
+      let reply: unknown;
+      try {
+        reply = await Promise.race([
+          env.AI.run(aiConfig.model, {
+            ...aiConfig.parameters,
+            messages: [{ role: 'system', content: systemPrompt(body) }, ...body.messages],
+          }),
+          new Promise((_, reject) => { deadline = setTimeout(() => reject(new Error('provider_timeout')), aiConfig.timeoutMs); }),
+        ]);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'provider_timeout') return fail('provider_timeout', 504, locale);
+        throw error;
+      } finally {
+        clearTimeout(deadline);
+      }
       const answer = extractMissionReply(reply, body.allowMission === true);
       return answer ? json({ mode: 'live', ...answer }) : fail('provider_unavailable', 503, locale);
     } catch {

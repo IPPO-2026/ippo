@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker from '../worker/index';
 import type { Env } from '../worker/index';
 import { reserve } from '../worker/budget';
+import aiConfig from '../worker/ai-config.json';
 
 const origin = 'https://ippo.example';
 const ip = '203.0.113.7';
@@ -214,8 +215,11 @@ describe('demo and live provider isolation', () => {
     const response = await worker.fetch(chat({ ...valid, locale: 'ja', region: 'KR' }), env);
     expect(await response.json()).toEqual({ mode: 'live', message: 'こんにちは。' });
     const [model, input] = run.mock.calls[0];
-    expect(model).toBe('@cf/qwen/qwen3-30b-a3b-fp8');
-    expect(input.max_tokens).toBeLessThanOrEqual(400);
+    expect(model).toBe('@cf/google/gemma-4-26b-a4b-it');
+    expect(input.max_completion_tokens).toBe(384);
+    expect(input.max_tokens).toBeUndefined();
+    expect(input.chat_template_kwargs).toEqual({ enable_thinking: false, clear_thinking: true });
+    expect(input.store).toBe(false);
     expect(input.messages[0]).toMatchObject({ role: 'system' });
     expect(input.messages[0].content).toContain('gentle Japanese');
     expect(input.messages[0].content).toContain('help region is South Korea');
@@ -230,6 +234,23 @@ describe('demo and live provider isolation', () => {
     const text = await response.text();
     expect(text).not.toMatch(/secret-value|user-private-content|API_KEY/);
     expect(JSON.parse(text)).toMatchObject({ code: 'provider_unavailable' });
+    expect(sqlite.prepare("SELECT count FROM request_budget WHERE bucket = '2026-09-19:global'").get()).toMatchObject({ count: 1 });
+  });
+
+  it('bounds a stalled model request without retrying inference or releasing the reservation', async () => {
+    const { env, run, sqlite } = setup();
+    vi.useFakeTimers();
+    let entered!: () => void;
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    run.mockImplementation(() => { entered(); return new Promise(() => {}); });
+    const pending = worker.fetch(chat(), env);
+    await started;
+    expect(run).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(aiConfig.timeoutMs);
+    const response = await pending;
+    expect(response.status).toBe(504);
+    expect(await response.json()).toMatchObject({ code: 'provider_timeout' });
+    expect(run).toHaveBeenCalledTimes(1);
     expect(sqlite.prepare("SELECT count FROM request_budget WHERE bucket = '2026-09-19:global'").get()).toMatchObject({ count: 1 });
   });
 

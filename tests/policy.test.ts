@@ -54,7 +54,7 @@ describe('language, region, and provider output boundaries', () => {
     const prompt = systemPrompt({ ...valid, locale, region });
     expect(prompt).toContain(`gentle ${language}`);
     expect(prompt).toContain(`help region is ${country}`);
-    expect(prompt).toContain('/no_think');
+    expect(prompt).not.toContain('/no_think');
     expect(prompt).toContain('Do not diagnose');
     expect(prompt).not.toContain(valid.messages[0].content);
   });
@@ -68,18 +68,27 @@ describe('language, region, and provider output boundaries', () => {
     expect(extractReply({ choices: [{ message: { content: '<think>private internal text</think>こんにちは。' } }] })).toBe('こんにちは。');
     expect(extractReply({ response: '  안녕하세요.  ' })).toBe('안녕하세요.');
     expect(extractReply({ choices: [{ message: { content: 'Current' } }], response: 'Legacy' })).toBe('Current');
+    expect(extractReply({ choices: [{ finish_reason: 'stop', message: { content: '<|channel>thought\nprivate reasoning<channel|>안녕하세요.' } }] })).toBe('안녕하세요.');
+    expect(extractReply({ choices: [{ finish_reason: 'stop', message: { content: '<|channel>thought\n<channel|>こんにちは。' } }] })).toBe('こんにちは。');
+  });
+
+  it.each(['length', 'content_filter', 'tool_calls', 'function_call'])('rejects a %s completion without displaying a partial answer', (finish_reason) => {
+    expect(extractReply({ choices: [{ finish_reason, message: { content: 'Incomplete or withheld output' } }] })).toBeNull();
   });
 
   it.each([
     null, 'not a response', {}, { response: 7 }, { choices: [{ message: { content: null } }] },
     { response: '<think>reasoning with no final answer</think>' },
     { response: '<think>truncated private reasoning' }, { response: 'incomplete</think>' },
+    { response: '<|channel>thought\nunclosed private reasoning' },
+    { response: 'unexpected <channel|> control token' },
+    { choices: [{ message: { content: null } }], response: 'must not fall back from an empty modern response' },
   ])('fails closed for unusable provider response %#', (result) => {
     expect(extractReply(result)).toBeNull();
   });
 
-  it('bounds oversized provider output', () => {
-    expect(extractReply({ response: 'a'.repeat(MAX_MESSAGE_LENGTH + 100) })).toHaveLength(MAX_MESSAGE_LENGTH);
+  it('rejects oversized output rather than splitting a sentence or mission marker', () => {
+    expect(extractReply({ response: 'a'.repeat(MAX_MESSAGE_LENGTH + 100) })).toBeNull();
   });
 });
 

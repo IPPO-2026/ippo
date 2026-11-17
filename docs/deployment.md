@@ -1,6 +1,6 @@
 # 무료 호스팅과 실제 AI 연결
 
-확인일: **2026-09-19**. 이 문서는 배포 가능한 구성을 설명합니다. 현재 운영 주소는 https://ippo.hyscodebase.workers.dev 이며 실제 AI 모드가 배포되어 있습니다. 아래는 재현·재배포 절차입니다.
+모델·AI 요금 확인일: **2026-11-17**. 나머지 호스팅 한도는 아래 원문 링크와 계정 상태를 확인합니다. 이 문서는 배포 가능한 구성을 설명합니다. 현재 운영 주소는 https://ippo.hyscodebase.workers.dev 이며 실제 AI 모드가 배포되어 있습니다. 아래는 재현·재배포 절차입니다.
 
 ## 1. 선택한 구성
 
@@ -10,9 +10,9 @@ React + Vite 정적 화면과 API Worker를 한 번에 배포하는 **Workers St
 |---|---|---|
 | 정적 자산 | 무료·무제한 요청, 저장 추가 비용 없음 | HTML/CSS/JS/아이콘 |
 | Worker | 계정당 100,000 요청/일, CPU 10 ms/요청 | 설정·채팅 API |
-| Workers AI | 계정당 10,000 neurons/일 | Qwen3 대화 |
+| Workers AI | 계정당 10,000 neurons/일 | Gemma 4 대화 |
 | D1 | 500만 rows read/일, 10만 rows written/일 | 요청 횟수 제한 |
-| D1 저장 | DB당 500 MB, 계정 합계 5 GB | 단기 익명 카운터만 |
+| D1 저장 | DB당 500 MB, 계정 합계 5 GB | 가명화 카운터·테스트 주문/지급 |
 
 출처: [정적 자산 요금](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/), [Workers 한도](https://developers.cloudflare.com/workers/platform/limits/), [AI 요금](https://developers.cloudflare.com/workers-ai/platform/pricing/), [D1 요금](https://developers.cloudflare.com/d1/platform/pricing/), [D1 한도](https://developers.cloudflare.com/d1/platform/limits/).
 
@@ -20,15 +20,15 @@ React + Vite 정적 화면과 API Worker를 한 번에 배포하는 **Workers St
 
 ## 2. AI 비용 예산
 
-모델: `@cf/qwen/qwen3-30b-a3b-fp8`. 한국어·일본어를 지원하는 Qwen3 계열입니다. 언어 지원은 응답 적합성 검증을 대신하지 않습니다. 현재 Cloudflare 모델 스키마의 `choices[0].message.content`와 기존 `response` 형식을 처리합니다. [모델 API](https://developers.cloudflare.com/workers-ai/models/qwen3-30b-a3b-fp8/), [Qwen 공식 소개](https://qwenlm.github.io/blog/qwen3/)
+모델: `@cf/google/gemma-4-26b-a4b-it`. 기존 Qwen3 30B는 [11월 20일 중단 공지](https://developers.cloudflare.com/changelog/post/2026-11-05-planned-model-deprecations/)에 포함되어 교체합니다. 모델 ID·생성 옵션은 `worker/ai-config.json`에 있습니다. `max_completion_tokens: 384`, `enable_thinking: false`, `clear_thinking: true`, `store: false`를 명시합니다. `/no_think`는 쓰지 않습니다. [모델 API](https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/)
 
-입력 100만 tokens당 4,625 neurons, 출력 100만 tokens당 30,475 neurons 기준:
+입력 100만 tokens당 9,091 neurons, 출력 100만 tokens당 27,273 neurons 기준:
 
 ```text
-예시 1회 = 입력 1,500 tokens × 0.004625
-         + 출력 384 tokens × 0.030475
-         = 약 18.64 neurons
-60회 = 약 1,119 neurons
+예시 1회 = 입력 1,500 tokens × 0.009091
+         + 출력 384 tokens × 0.027273
+         = 약 24.11 neurons
+60회 = 약 1,447 neurons
 ```
 
 이는 가정에 따른 계산입니다. 한국어·일본어 글자 수는 token 수와 같지 않고 시스템 프롬프트·내부 추론·계정의 다른 사용량이 영향을 줍니다. 정확한 소비량은 Cloudflare 대시보드에서 확인합니다. [공식 모델 요금](https://developers.cloudflare.com/workers-ai/platform/pricing/)
