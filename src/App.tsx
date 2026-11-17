@@ -8,7 +8,6 @@ import {
   Plus,
   Sprout,
   X,
-  LoaderCircle,
 } from "lucide-react";
 import type { AppConfig, ChatResponse, Locale, Region } from "./shared";
 import { MAX_CONTEXT_CHARACTERS, MAX_MESSAGE_LENGTH } from "./shared";
@@ -62,6 +61,7 @@ export default function App() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [configError, setConfigError] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [slowResponse, setSlowResponse] = useState(false);
   const [error, setError] = useState("");
   const [errorCode, setErrorCode] = useState("");
   const [paymentOpen, setPaymentOpen] = useState(() =>
@@ -92,6 +92,7 @@ export default function App() {
     request.current?.abort();
     busy.current = false;
     setLoading(false);
+    setSlowResponse(false);
     setToken("");
     setVerification((v) => v + 1);
   }, []);
@@ -194,7 +195,15 @@ export default function App() {
   }, [messages, locale, region, saveHistory]);
   useEffect(() => {
     end.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
-  }, [messages, loading, error]);
+  }, [messages, loading, error, slowResponse]);
+  useEffect(() => {
+    if (!loading) {
+      setSlowResponse(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setSlowResponse(true), 8000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
   useEffect(() => {
     if (input.current) {
       input.current.style.height = "auto";
@@ -294,12 +303,13 @@ export default function App() {
       controller = new AbortController();
     request.current = controller;
     busy.current = true;
+    setSlowResponse(false);
     setLoading(true);
     setError("");
     setErrorCode("");
     setRetry(null);
     setMessages(next);
-    setDraft("");
+    if (!previous) setDraft("");
     const currentToken = token;
     setToken("");
     const timeout = setTimeout(() => controller.abort("timeout"), 45000);
@@ -374,8 +384,12 @@ export default function App() {
         daily_limit: t.dailyLimit,
         not_configured: t.notConfigured,
         verification_required: t.verificationError,
+        request_timeout: t.responseTimeout,
+        provider_timeout: t.responseTimeout,
       };
-      const code = caught instanceof Error ? caught.message : "";
+      const code = controller.signal.reason === "timeout"
+        ? "request_timeout"
+        : caught instanceof Error ? caught.message : "";
       setErrorCode(code);
       setError(labels[code] || t.error);
       setRetry(next);
@@ -616,9 +630,15 @@ export default function App() {
               </article>
             ))}
             {loading && (
-              <div className="reply-loading" role="status">
-                <LoaderCircle size={16} />
-                {t.sending}
+              <div className="message-row assistant reply-loading">
+                <BrandMark className="message-avatar" />
+                <div className="reply-loading-copy" role="status" aria-live="polite" aria-atomic="true">
+                  <div className="reply-loading-label">
+                    <span className="reply-dots" aria-hidden="true"><i /><i /><i /></span>
+                    <span>{slowResponse ? t.responseSlow : t.sending}</span>
+                  </div>
+                  {slowResponse && <p>{t.responseSlowHint}</p>}
+                </div>
               </div>
             )}
           </div>
@@ -627,14 +647,17 @@ export default function App() {
           <div className="conversation-error" role="alert">
             <p>{error}</p>
             {retry && errorCode !== "daily_limit" && (
-              <button
-                disabled={
-                  loading || configError || pwa.offline || (isLive && (!consent || !token))
-                }
-                onClick={() => void send(retry)}
-              >
-                {t.retry}
-              </button>
+              <div className="reply-retry">
+                <button
+                  disabled={
+                    loading || configError || pwa.offline || (isLive && (!consent || !token))
+                  }
+                  onClick={() => void send(retry)}
+                >
+                  {t.retry}
+                </button>
+                <small>{t.retrySameMessage}</small>
+              </div>
             )}
             {errorCode === "daily_limit" && (
               <div className="limit-actions">
@@ -727,7 +750,6 @@ export default function App() {
             maxLength={MAX_MESSAGE_LENGTH}
             aria-label={t.placeholder}
             placeholder={t.placeholder}
-            disabled={loading}
             onCompositionStart={() => {
               composing.current = true;
             }}

@@ -1,0 +1,15 @@
+{
+  "model": "@cf/google/gemma-4-26b-a4b-it",
+  "timeoutMs": 30000,
+  "parameters": {
+    "max_completion_tokens": 384,
+    "temperature": 0.6,
+    "stream": false,
+    "store": false,
+    "response_format": { "type": "text" },
+    "chat_template_kwargs": {
+      "enable_thinking": false,
+      "clear_thinking": true
+    }
+  }
+}

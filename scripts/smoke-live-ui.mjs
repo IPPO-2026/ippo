@@ -263,8 +263,69 @@ await page.waitForTimeout(3200);
 assert.equal(await page.locator(".payment-demo").isVisible(), true, "failed approval must stay visible");
 await page.getByRole("button", { name: "대화로 돌아가기", exact: true }).click();
 await page.locator(".payment-demo").waitFor({ state: "detached" });
+
+// Waiting, cancellation and timeout are tested against gated synthetic responses.
+// Browser time advances without waiting 45 real seconds or calling a real model.
+const waiting = await context.newPage();
+await waiting.goto(baseUrl);
+await waiting.getByRole("checkbox").click();
+await waiting.getByRole("textbox").fill("기다리는 답변 테스트");
+await waiting.waitForFunction(() => !document.querySelector(".send-button").disabled);
+await waiting.clock.install();
+await context.unroute("**/api/chat");
+let releaseSlow;
+const slowGate = new Promise(resolve => { releaseSlow = resolve; });
+await context.route("**/api/chat", async route => {
+  await slowGate;
+  try { await route.fulfill({ json: { mode: "live", message: "CANCELLED REPLY MUST NOT RETURN" } }); } catch {}
+});
+await waiting.getByRole("button", { name: "메시지 보내기", exact: true }).click();
+await waiting.locator(".reply-loading").getByText("답변을 준비하고 있어요…", { exact: true }).waitFor();
+assert.equal(await waiting.getByRole("textbox").isEditable(), true, "the next draft stays editable while waiting");
+await waiting.getByRole("textbox").fill("다음에 보낼 초안");
+await waiting.clock.runFor(8100);
+await waiting.getByText("답변이 평소보다 조금 늦어지고 있어요", { exact: true }).waitFor();
+await waiting.getByRole("button", { name: "중지", exact: true }).click();
+releaseSlow();
+await waiting.locator(".reply-loading").waitFor({ state: "detached" });
+assert.equal(await waiting.getByText("CANCELLED REPLY MUST NOT RETURN").count(), 0);
+assert.equal(await waiting.getByRole("textbox").inputValue(), "다음에 보낼 초안");
+
+await context.unroute("**/api/chat");
+let releaseTimeout;
+const timeoutGate = new Promise(resolve => { releaseTimeout = resolve; });
+await context.route("**/api/chat", async route => {
+  await timeoutGate;
+  try { await route.fulfill({ json: { mode: "live", message: "TIMED OUT REPLY MUST NOT RETURN" } }); } catch {}
+});
+await waiting.waitForFunction(() => !document.querySelector(".send-button").disabled);
+await waiting.getByRole("button", { name: "메시지 보내기", exact: true }).click();
+await waiting.locator(".reply-loading").waitFor();
+await waiting.getByRole("textbox").fill("재시도 뒤에도 남겨둘 초안");
+await waiting.clock.runFor(45100);
+await waiting.getByText("답변을 제시간에 받지 못했어요. 잠시 뒤 다시 시도해주세요.", { exact: true }).waitFor();
+releaseTimeout();
+assert.equal(await waiting.getByText("TIMED OUT REPLY MUST NOT RETURN").count(), 0);
+await context.unroute("**/api/chat");
+let retriedPayload;
+await context.route("**/api/chat", route => {
+  retriedPayload = route.request().postDataJSON();
+  return route.fulfill({ json: { mode: "live", message: "재시도한 답변이에요." } });
+});
+await waiting.getByRole("button", { name: "다시 시도", exact: true }).waitFor({ state: "visible" });
+await waiting.waitForFunction(() => !document.querySelector(".reply-retry button").disabled);
+await waiting.getByRole("button", { name: "다시 시도", exact: true }).click();
+await waiting.getByText("재시도한 답변이에요.", { exact: true }).waitFor();
+assert.equal(retriedPayload.messages.at(-1).content, "다음에 보낼 초안", "retry reuses the failed message, not the next draft");
+assert.equal(await waiting.getByRole("textbox").inputValue(), "재시도 뒤에도 남겨둘 초안", "retry preserves the prepared next draft");
+await context.unroute("**/api/chat");
+await context.route("**/api/chat", route => route.fulfill({ status: 503, json: { code: "provider_timeout" } }));
+await waiting.waitForFunction(() => !document.querySelector(".send-button").disabled);
+await waiting.getByRole("button", { name: "메시지 보내기", exact: true }).click();
+await waiting.getByText("답변을 제시간에 받지 못했어요. 잠시 뒤 다시 시도해주세요.", { exact: true }).waitFor();
+await waiting.close();
 console.log(
-  "PASS: mocked live contract — consent, independent locale/region, localized quota error, no disguised demo response, bounded context and clear aborts pending response. This script does not call the real model.",
+  "PASS: mocked live contract — consent, independent locale/region, quota/payment recovery, waiting/slow/cancel/timeout/retry with draft preservation, bounded context and deletion abort. No real model called.",
 );
 } finally {
   await browser.close();

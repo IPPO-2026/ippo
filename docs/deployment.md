@@ -1,6 +1,6 @@
 # 무료 호스팅과 실제 AI 연결
 
-확인일: **2026-09-19**. 이 문서는 배포 가능한 구성을 설명합니다. 현재 운영 주소는 https://ippo.hyscodebase.workers.dev 이며 실제 AI 모드가 배포되어 있습니다. 아래는 재현·재배포 절차입니다.
+모델·AI 요금 확인일: **2026-11-17**. 나머지 호스팅 한도는 아래 원문 링크와 계정 상태를 확인합니다. 이 문서는 배포 가능한 구성을 설명합니다. 현재 운영 주소는 https://ippo.hyscodebase.workers.dev 이며 실제 AI 모드가 배포되어 있습니다. 아래는 재현·재배포 절차입니다.
 
 ## 1. 선택한 구성
 
@@ -10,9 +10,9 @@ React + Vite 정적 화면과 API Worker를 한 번에 배포하는 **Workers St
 |---|---|---|
 | 정적 자산 | 무료·무제한 요청, 저장 추가 비용 없음 | HTML/CSS/JS/아이콘 |
 | Worker | 계정당 100,000 요청/일, CPU 10 ms/요청 | 설정·채팅 API |
-| Workers AI | 계정당 10,000 neurons/일 | Qwen3 대화 |
+| Workers AI | 계정당 10,000 neurons/일 | Gemma 4 대화 |
 | D1 | 500만 rows read/일, 10만 rows written/일 | 요청 횟수 제한 |
-| D1 저장 | DB당 500 MB, 계정 합계 5 GB | 단기 익명 카운터만 |
+| D1 저장 | DB당 500 MB, 계정 합계 5 GB | 가명화 카운터·테스트 주문/지급 |
 
 출처: [정적 자산 요금](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/), [Workers 한도](https://developers.cloudflare.com/workers/platform/limits/), [AI 요금](https://developers.cloudflare.com/workers-ai/platform/pricing/), [D1 요금](https://developers.cloudflare.com/d1/platform/pricing/), [D1 한도](https://developers.cloudflare.com/d1/platform/limits/).
 
@@ -20,15 +20,15 @@ React + Vite 정적 화면과 API Worker를 한 번에 배포하는 **Workers St
 
 ## 2. AI 비용 예산
 
-모델: `@cf/qwen/qwen3-30b-a3b-fp8`. 한국어·일본어를 지원하는 Qwen3 계열입니다. 언어 지원은 응답 적합성 검증을 대신하지 않습니다. 현재 Cloudflare 모델 스키마의 `choices[0].message.content`와 기존 `response` 형식을 처리합니다. [모델 API](https://developers.cloudflare.com/workers-ai/models/qwen3-30b-a3b-fp8/), [Qwen 공식 소개](https://qwenlm.github.io/blog/qwen3/)
+모델: `@cf/google/gemma-4-26b-a4b-it`. 기존 Qwen3 30B는 [11월 20일 중단 공지](https://developers.cloudflare.com/changelog/post/2026-11-05-planned-model-deprecations/)에 포함되어 교체합니다. 모델 ID·생성 옵션은 `worker/ai-config.json`에 있습니다. `max_completion_tokens: 384`, `enable_thinking: false`, `clear_thinking: true`, `store: false`를 명시합니다. `/no_think`는 쓰지 않습니다. [모델 API](https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/)
 
-입력 100만 tokens당 4,625 neurons, 출력 100만 tokens당 30,475 neurons 기준:
+입력 100만 tokens당 9,091 neurons, 출력 100만 tokens당 27,273 neurons 기준:
 
 ```text
-예시 1회 = 입력 1,500 tokens × 0.004625
-         + 출력 384 tokens × 0.030475
-         = 약 18.64 neurons
-60회 = 약 1,119 neurons
+예시 1회 = 입력 1,500 tokens × 0.009091
+         + 출력 384 tokens × 0.027273
+         = 약 24.11 neurons
+60회 = 약 1,447 neurons
 ```
 
 이는 가정에 따른 계산입니다. 한국어·일본어 글자 수는 token 수와 같지 않고 시스템 프롬프트·내부 추론·계정의 다른 사용량이 영향을 줍니다. 정확한 소비량은 Cloudflare 대시보드에서 확인합니다. [공식 모델 요금](https://developers.cloudflare.com/workers-ai/platform/pricing/)
@@ -57,14 +57,35 @@ npm run deploy:demo
 
 ### A. 계정·D1·Turnstile 준비
 
-Workers **Free** 계정에서 진행합니다. Turnstile 위젯을 만들고 실제 배포 호스트를 허용 목록에 등록합니다. 공개 site key와 비공개 secret key를 구분합니다.
+Workers **Free** 계정에서 진행합니다. 먼저 실제 인증된 사용자와 접근 가능한 계정을 확인합니다.
 
 ```bash
-cp wrangler.live.example.jsonc wrangler.live.jsonc
-npx wrangler d1 create ippo-budget
+npx wrangler whoami
 ```
 
-생성 결과의 DB ID를 `wrangler.live.jsonc`의 `database_id`에, Turnstile 공개 site key를 `TURNSTILE_SITE_KEY`에 넣습니다. 파일은 Git에서 제외됩니다. 마이그레이션을 적용합니다.
+브라우저의 Google 로그인 계정과 Cloudflare 프로필 이메일이 다를 수 있으므로 CLI가 반환한 실제 사용자와 계정 ID를 확인합니다. 기존 앱을 재배포한다면 기존 운영 계정과 일치해야 합니다. 다른 계정의 인증이면 여기서 멈추고 새 리소스를 만들지 않습니다.
+
+**기존 앱 재배포:** Git에서 제외된 기존 `wrangler.live.jsonc`를 그대로 사용하고, `account_id`가 운영 계정 ID에 고정되어 있는지 확인합니다. 예시 파일로 덮어쓰거나 D1·Turnstile을 다시 만들지 않습니다. 기존 DB ID·site key·배포된 비밀값을 유지하고 아래 읽기 전용 명령으로 접근을 확인한 뒤 B로 진행합니다. 이번 모델 교체에는 DB 마이그레이션이나 비밀값 교체가 필요하지 않습니다.
+
+```bash
+npx wrangler deployments list --config wrangler.live.jsonc
+npx wrangler d1 info ippo-budget --config wrangler.live.jsonc
+npx wrangler secret list --config wrangler.live.jsonc
+```
+
+**최초 구축에만 적용:** live 설정 파일이 없을 때 아래 명령으로 복사합니다. `-n`은 기존 파일 덮어쓰기를 방지합니다.
+
+```bash
+cp -n wrangler.live.example.jsonc wrangler.live.jsonc
+```
+
+확인한 계정 ID를 `wrangler.live.jsonc`의 `account_id`에 입력한 뒤 DB를 생성합니다. Turnstile 위젯도 만들고 실제 배포 호스트를 허용 목록에 등록합니다. 공개 site key와 비공개 secret key를 구분합니다.
+
+```bash
+npx wrangler d1 create ippo-budget --config wrangler.live.jsonc
+```
+
+생성 결과의 DB ID를 `database_id`에, Turnstile 공개 site key를 `TURNSTILE_SITE_KEY`에 넣습니다. 최초 DB에 마이그레이션을 적용하고 비밀값을 등록합니다.
 
 ```bash
 npx wrangler d1 migrations apply ippo-budget --remote --config wrangler.live.jsonc
