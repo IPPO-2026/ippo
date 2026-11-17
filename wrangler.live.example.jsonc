@@ -1,6 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "ippo",
+  "account_id": "REPLACE_WITH_EXISTING_ACCOUNT_ID",
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "workers_dev": true,

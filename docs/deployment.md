@@ -57,14 +57,35 @@ npm run deploy:demo
 
 ### A. 계정·D1·Turnstile 준비
 
-Workers **Free** 계정에서 진행합니다. Turnstile 위젯을 만들고 실제 배포 호스트를 허용 목록에 등록합니다. 공개 site key와 비공개 secret key를 구분합니다.
+Workers **Free** 계정에서 진행합니다. 먼저 실제 인증된 사용자와 접근 가능한 계정을 확인합니다.
 
 ```bash
-cp wrangler.live.example.jsonc wrangler.live.jsonc
-npx wrangler d1 create ippo-budget
+npx wrangler whoami
 ```
 
-생성 결과의 DB ID를 `wrangler.live.jsonc`의 `database_id`에, Turnstile 공개 site key를 `TURNSTILE_SITE_KEY`에 넣습니다. 파일은 Git에서 제외됩니다. 마이그레이션을 적용합니다.
+브라우저의 Google 로그인 계정과 Cloudflare 프로필 이메일이 다를 수 있으므로 CLI가 반환한 실제 사용자와 계정 ID를 확인합니다. 기존 앱을 재배포한다면 기존 운영 계정과 일치해야 합니다. 다른 계정의 인증이면 여기서 멈추고 새 리소스를 만들지 않습니다.
+
+**기존 앱 재배포:** Git에서 제외된 기존 `wrangler.live.jsonc`를 그대로 사용하고, `account_id`가 운영 계정 ID에 고정되어 있는지 확인합니다. 예시 파일로 덮어쓰거나 D1·Turnstile을 다시 만들지 않습니다. 기존 DB ID·site key·배포된 비밀값을 유지하고 아래 읽기 전용 명령으로 접근을 확인한 뒤 B로 진행합니다. 이번 모델 교체에는 DB 마이그레이션이나 비밀값 교체가 필요하지 않습니다.
+
+```bash
+npx wrangler deployments list --config wrangler.live.jsonc
+npx wrangler d1 info ippo-budget --config wrangler.live.jsonc
+npx wrangler secret list --config wrangler.live.jsonc
+```
+
+**최초 구축에만 적용:** live 설정 파일이 없을 때 아래 명령으로 복사합니다. `-n`은 기존 파일 덮어쓰기를 방지합니다.
+
+```bash
+cp -n wrangler.live.example.jsonc wrangler.live.jsonc
+```
+
+확인한 계정 ID를 `wrangler.live.jsonc`의 `account_id`에 입력한 뒤 DB를 생성합니다. Turnstile 위젯도 만들고 실제 배포 호스트를 허용 목록에 등록합니다. 공개 site key와 비공개 secret key를 구분합니다.
+
+```bash
+npx wrangler d1 create ippo-budget --config wrangler.live.jsonc
+```
+
+생성 결과의 DB ID를 `database_id`에, Turnstile 공개 site key를 `TURNSTILE_SITE_KEY`에 넣습니다. 최초 DB에 마이그레이션을 적용하고 비밀값을 등록합니다.
 
 ```bash
 npx wrangler d1 migrations apply ippo-budget --remote --config wrangler.live.jsonc
